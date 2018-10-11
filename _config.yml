@@ -19,7 +19,7 @@ subnav:
   linkedin: "https://www.linkedin.com/in/%E7%91%9E-%E9%82%B9-30427a101/"
 # URL
 ## If your site is put in a subdirectory, set url as 'http://yoursite.com/child' and root as '/child/'
-url: http://zou.cool
+url: https://zou.cool
 root: /
 permalink: :year/:month/:day/:title/
 permalink_defaults:
@@ -85,7 +85,7 @@ theme: yilia
 ## Docs: https://hexo.io/docs/deployment.html
 deploy:
   type: git
-  repo: https://github.com/phantooom/blog.git
+  repo: git@github.com:phantooom/blog-static.git
   branch: master
 excerpt_link: 展开全文
 reward_type: 2
