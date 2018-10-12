@@ -29,7 +29,7 @@ comments: false
 * 2016.04-2018.05 QingCloud 研发工程师
 * 2015.10-2016.04 野兽骑行 python开发实习生
 
-### 技术盏
+### 技术栈
 
 * 吹牛逼
 * 甩锅
@@ -51,6 +51,6 @@ comments: false
 
 * 存储
 * 搜索
-* iaas
+* IaaS
 
 
