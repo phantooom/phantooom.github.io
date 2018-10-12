@@ -95,3 +95,4 @@ weixin: /images/wx.png
 toc: 2
 top: true
 share_jia: true
+layout: false
