@@ -32,7 +32,8 @@ archive_dir: archives
 category_dir: categories
 code_dir: downloads/code
 i18n_dir: :lang
-skip_render:
+skip_render: 
+    - "google2db93daef5d2d1ea.html"
 
 # Writing
 new_post_name: :title.md # File name of new posts
@@ -95,7 +96,6 @@ weixin: /images/wx.png
 toc: 2
 top: true
 share_jia: true
-layout: false
 sitemap: 
   path: sitemap.xml
 baidusitemap:
