@@ -96,3 +96,7 @@ toc: 2
 top: true
 share_jia: true
 layout: false
+sitemap: 
+  path: sitemap.xml
+baidusitemap:
+  path: baidusitemap.xml
