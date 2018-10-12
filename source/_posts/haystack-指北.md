@@ -1,7 +1,6 @@
 ---
 title: haystack 指北
 date: 2018-08-11 15:48:53
-description: 本文主要讲述facebook 对象存储系统haystack的设计与实现
 categories: 存储
 tags:
     - 对象存储

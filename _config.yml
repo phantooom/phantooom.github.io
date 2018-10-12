@@ -5,18 +5,18 @@
 # Site
 title: 邹扒皮实验室
 subtitle: 退堂鼓满级
-description:  
+description: 非业余系统研究者
 keywords: linux iaas 分布式系统 
 author: phantooom
 avatar: /images/head.jpeg
-language:
+language: zh-Hans
 timezone:
 
 subnav:
-  github: "https://github.com/phantooom"
-  zhihu: "https://www.zhihu.com/people/zoubapi"
-  mail: "mailto:xiaorui.zou@gmail.com"
-  linkedin: "https://www.linkedin.com/in/%E7%91%9E-%E9%82%B9-30427a101/"
+  GitHub: "https://github.com/phantooom"
+  ZhiHu: "https://www.zhihu.com/people/zoubapi"
+  E-Mail: "mailto:xiaorui.zou@gmail.com"
+  Linkedin: "https://www.linkedin.com/in/%E7%91%9E-%E9%82%B9-30427a101/"
 # URL
 ## If your site is put in a subdirectory, set url as 'http://yoursite.com/child' and root as '/child/'
 url: https://zou.cool
@@ -79,7 +79,7 @@ pagination_dir: page
 # Extensions
 ## Plugins: https://hexo.io/plugins/
 ## Themes: https://hexo.io/themes/
-theme: yilia
+theme: next
 
 # Deployment
 ## Docs: https://hexo.io/docs/deployment.html
@@ -96,16 +96,8 @@ toc: 2
 top: true
 share_jia: true
 
-slider:
-  showTags: true
+# slider:
+#   showTags: true
 
-smart_menu:
-  innerArchive: '所有文章'
-  # friends: '友链'
-  aboutme: '关于我'
-# friends:
-#   友情链接: http://localhost:4000/
-aboutme: 江湖人称  邹扒皮
-menu:
-  存储: /categories/存储/
-  运维: /categories/运维/
+
+aboutme: 江湖人称  邹扒皮 善于吹牛逼<br><br>Sensetime 分布式系统研发工程师 2018.5 - 至今<br><br>QingCloud 研发工程师 2016.04 - 2018.5<br><br>野兽骑行 python开发实习生 2015.10 - 2016.04<br><br>
