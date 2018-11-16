@@ -1,5 +1,15 @@
 package mapreduce
 
+import (
+	"bufio"
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"os"
+	"sort"
+	"strings"
+)
+
 func doReduce(
 	jobName string, // the name of the whole MapReduce job
 	reduceTask int, // which reduce task this is
@@ -44,4 +54,49 @@ func doReduce(
 	//
 	// Your code here (Part I).
 	//
+	bytes, e := ioutil.ReadFile(reduceName(jobName, nMap-1, reduceTask))
+	if e != nil {
+		fmt.Printf("read error:%v", e)
+	}
+	input := string(bytes)
+	input = strings.Trim(input, "\n")
+	result := strings.Split(input, "\n")
+	kvs := make(map[string][]string)
+	keys := make([]string, 0)
+	for _, s := range result {
+		kv := &KeyValue{}
+		err := json.Unmarshal([]byte(s), kv)
+		if err != nil {
+			fmt.Printf(" error :%v", err)
+		}
+		k := kv.Key
+		v := kv.Value
+		_, ok := kvs[k]
+		var l []string
+		if ok {
+			l = kvs[k]
+		} else {
+			l = make([]string, 0)
+		}
+		l = append(l, v)
+		kvs[k] = l
+	}
+	for k, _ := range kvs {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	//outName := mergeName(jobName, reduceTask)
+	outputFile, outputError := os.OpenFile(outFile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
+	if outputError != nil {
+		fmt.Printf("An error occurred with file opening or creation\n")
+		return
+	}
+	defer outputFile.Close()
+	outputWriter := bufio.NewWriter(outputFile)
+	enc := json.NewEncoder(outputWriter)
+	for _, key := range keys {
+		valueList := kvs[key]
+		enc.Encode(KeyValue{key, reduceF(key, valueList)})
+	}
+	outputWriter.Flush()
 }

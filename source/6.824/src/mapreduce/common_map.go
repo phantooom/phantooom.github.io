@@ -1,7 +1,12 @@
 package mapreduce
 
 import (
+	"bufio"
+	"encoding/json"
+	"fmt"
 	"hash/fnv"
+	"io/ioutil"
+	"os"
 )
 
 func doMap(
@@ -53,6 +58,34 @@ func doMap(
 	//
 	// Your code here (Part I).
 	//
+
+	// read one of the input files
+
+	bytes, e := ioutil.ReadFile(inFile)
+	if e != nil {
+		fmt.Printf("read file failed: %v", e)
+	}
+	// call the user-defined map function (mapF) for that file's  contents
+	keyValues := mapF(inFile, string(bytes))
+	for _, kv := range keyValues {
+		key := kv.Key
+		partition := ihash(key) % nReduce
+		//fmt.Printf("maptask: %v key :%v nReduce:%v partation:%v \n", mapTask, key, nReduce, partition)
+		fName := reduceName(jobName, mapTask, partition)
+		enc, err := json.Marshal(&kv)
+		if err != nil {
+			fmt.Printf("marshal err: %v", err)
+		}
+		outputFile, outputError := os.OpenFile(fName, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
+		if outputError != nil {
+			fmt.Printf("An error:%v occurred with file opening or creation\n", outputError)
+			return
+		}
+		defer outputFile.Close()
+		outputWriter := bufio.NewWriter(outputFile)
+		outputWriter.WriteString(string(enc) + "\n")
+		outputWriter.Flush()
+	}
 }
 
 func ihash(s string) int {
