@@ -94,7 +94,6 @@ func doReduce(
 		fmt.Printf("An error occurred with file opening or creation\n")
 		return
 	}
-	defer outputFile.Close()
 	outputWriter := bufio.NewWriter(outputFile)
 	enc := json.NewEncoder(outputWriter)
 	for _, key := range keys {
@@ -102,4 +101,5 @@ func doReduce(
 		enc.Encode(KeyValue{key, reduceF(key, valueList)})
 	}
 	outputWriter.Flush()
+	outputFile.Close()
 }
