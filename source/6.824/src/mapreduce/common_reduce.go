@@ -54,35 +54,38 @@ func doReduce(
 	//
 	// Your code here (Part I).
 	//
-	bytes, e := ioutil.ReadFile(reduceName(jobName, nMap-1, reduceTask))
-	if e != nil {
-		fmt.Printf("read error:%v", e)
-	}
-	input := string(bytes)
-	input = strings.Trim(input, "\n")
-	result := strings.Split(input, "\n")
 	kvs := make(map[string][]string)
 	keys := make([]string, 0)
-	for _, s := range result {
-		kv := &KeyValue{}
-		err := json.Unmarshal([]byte(s), kv)
-		if err != nil {
-			fmt.Printf(" error :%v", err)
+	for i := 0; i < nMap; i++ {
+		bytes, e := ioutil.ReadFile(reduceName(jobName, i, reduceTask))
+		if e != nil {
+			fmt.Printf("read error:%v", e)
 		}
-		k := kv.Key
-		v := kv.Value
-		_, ok := kvs[k]
-		var l []string
-		if ok {
-			l = kvs[k]
-		} else {
-			l = make([]string, 0)
+		input := string(bytes)
+		input = strings.Trim(input, "\n")
+		result := strings.Split(input, "\n")
+
+		for _, s := range result {
+			kv := &KeyValue{}
+			err := json.Unmarshal([]byte(s), kv)
+			if err != nil {
+				fmt.Printf(" error :%v", err)
+			}
+			k := kv.Key
+			v := kv.Value
+			_, ok := kvs[k]
+			var l []string
+			if ok {
+				l = kvs[k]
+			} else {
+				l = make([]string, 0)
+			}
+			l = append(l, v)
+			kvs[k] = l
 		}
-		l = append(l, v)
-		kvs[k] = l
-	}
-	for k, _ := range kvs {
-		keys = append(keys, k)
+		for k, _ := range kvs {
+			keys = append(keys, k)
+		}
 	}
 	sort.Strings(keys)
 	//outName := mergeName(jobName, reduceTask)

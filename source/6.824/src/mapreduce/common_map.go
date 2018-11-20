@@ -81,10 +81,10 @@ func doMap(
 			fmt.Printf("An error:%v occurred with file opening or creation\n", outputError)
 			return
 		}
-		defer outputFile.Close()
 		outputWriter := bufio.NewWriter(outputFile)
 		outputWriter.WriteString(string(enc) + "\n")
 		outputWriter.Flush()
+		outputFile.Close()
 	}
 }
 
