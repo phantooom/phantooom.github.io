@@ -48,12 +48,15 @@ func schedule(jobName string, mapFiles []string, nReduce int, phase jobPhase, re
 			wg.Add(1)
 			go func(index int, file string) {
 				defer wg.Done()
+			mapFailed:
 				avaWorkerAddr := <-workerAddrs
 				taskArgs := DoTaskArgs{JobName: jobName, File: file, Phase: phase, TaskNumber: index, NumOtherPhase: n_other}
 				fmt.Printf("\ncall map rpc index: %d file: %s\n", index, file)
 				isSuccess := call(avaWorkerAddr, "Worker.DoTask", taskArgs, nil)
 				if isSuccess {
 					workerAddrs <- avaWorkerAddr
+				} else {
+					goto mapFailed
 				}
 			}(index, file)
 
@@ -64,11 +67,14 @@ func schedule(jobName string, mapFiles []string, nReduce int, phase jobPhase, re
 			wg.Add(1)
 			go func(index int) {
 				defer wg.Done()
+			reduceFailed:
 				avaWorkerAddr := <-workerAddrs
 				taskArgs := DoTaskArgs{JobName: jobName, Phase: phase, TaskNumber: index, NumOtherPhase: n_other}
 				isSuccess := call(avaWorkerAddr, "Worker.DoTask", taskArgs, nil)
 				if isSuccess {
 					workerAddrs <- avaWorkerAddr
+				} else {
+					goto reduceFailed
 				}
 			}(index)
 		}
