@@ -1,6 +1,9 @@
 package mapreduce
 
-import "fmt"
+import (
+	"fmt"
+	"sync"
+)
 
 //
 // schedule() starts and waits for all tasks in the given phase (mapPhase
@@ -30,5 +33,46 @@ func schedule(jobName string, mapFiles []string, nReduce int, phase jobPhase, re
 	//
 	// Your code here (Part III, Part IV).
 	//
+	workerAddrs := make(chan string, 100)
+	go func(workerAddrs chan string, registerChan chan string) {
+		for {
+			addr := <-registerChan
+			fmt.Printf("\nadd worker :%s\n", addr)
+			workerAddrs <- addr
+		}
+	}(workerAddrs, registerChan)
+	var wg sync.WaitGroup
+	switch phase {
+	case mapPhase:
+		for index, file := range mapFiles {
+			wg.Add(1)
+			go func(index int, file string) {
+				defer wg.Done()
+				avaWorkerAddr := <-workerAddrs
+				taskArgs := DoTaskArgs{JobName: jobName, File: file, Phase: phase, TaskNumber: index, NumOtherPhase: n_other}
+				fmt.Printf("\ncall map rpc index: %d file: %s\n", index, file)
+				isSuccess := call(avaWorkerAddr, "Worker.DoTask", taskArgs, nil)
+				if isSuccess {
+					workerAddrs <- avaWorkerAddr
+				}
+			}(index, file)
+
+		}
+		wg.Wait()
+	case reducePhase:
+		for index := 0; index < ntasks; index++ {
+			wg.Add(1)
+			go func(index int) {
+				defer wg.Done()
+				avaWorkerAddr := <-workerAddrs
+				taskArgs := DoTaskArgs{JobName: jobName, Phase: phase, TaskNumber: index, NumOtherPhase: n_other}
+				isSuccess := call(avaWorkerAddr, "Worker.DoTask", taskArgs, nil)
+				if isSuccess {
+					workerAddrs <- avaWorkerAddr
+				}
+			}(index)
+		}
+		wg.Wait()
+	}
 	fmt.Printf("Schedule: %v done\n", phase)
 }
