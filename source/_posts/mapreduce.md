@@ -1,17 +1,22 @@
 ---
 title: mit 6.824 学习笔记 (一) MapReduce 详解
-categories: [分布式系统,mit6.824] 
 tags:
-    - 分布式系统
-    - osdi
-    - mit6.824
-    - 离线计算
+  - 分布式系统
+  - osdi
+  - mit6.824
+  - 离线计算
+categories:
+  - 分布式系统
+  - mit6.824
+date: 2018-11-27 12:14:59
 ---
+
 
 ### 0x00 序
 
 本来前年的这个时候就打算刷这个课了，但是在抗击懒癌的过程中节节败退。一直就拖到了现在，也不知道这次能坚持多久。总之争取每个月能出一篇文章吧。主要是为了克服自己对于知识的遗忘，如果同时能给你带来一些启发或者帮助那就更好了。考虑到自己吃了没文化的亏，为了能在某些时候能读到最新的一些技术文章或者论文。现在就必须克服读英语的障碍，我会强迫自己去理解并翻译原文，参考其他文章的理解，参考讲义，最后总结出来一篇文章。
 
+<!-- more -->
 
 ### 0x01 关于分布式系统
 
@@ -36,7 +41,7 @@ tags:
 
 #### 什么是MapReduce
 
-MapReduce 是一种编程模型,MapReduce分为Map 和 Reduce 两个过程,Map读取巨大数据集，处理后产生中间结果，Reduce则读取Map产生的中间结果，并将结果输出。
+MapReduce 是一种编程模型 论文原文发表在[osdi](https://pdos.csail.mit.edu/6.824/papers/mapreduce.pdf)上,MapReduce分为Map 和 Reduce 两个过程,Map读取巨大数据集，处理后产生中间结果，Reduce则读取Map产生的中间结果，并将结果输出。
 
 注：MapReduce是一种编程模型，MapReduce库则是MapReduce编程模型的实现，可以隐藏掉具体的分布式系统的细节。下文中提到的MapReduce 包含了 MapReduce 编程模型和MapReduce库 两个内容,需要注意区分。
 
