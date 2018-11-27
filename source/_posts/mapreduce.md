@@ -1,6 +1,7 @@
 ---
 title: mit 6.824 学习笔记 (一) MapReduce 详解
 categories: [分布式系统,mit6.824] 
+date: 2018-11-27
 tags:
     - 分布式系统
     - osdi
