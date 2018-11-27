@@ -1,16 +1,12 @@
 ---
 title: mit 6.824 学习笔记 (一) MapReduce 详解
+categories: [分布式系统,mit6.824] 
 tags:
-  - 分布式系统
-  - osdi
-  - mit6.824
-  - 离线计算
-categories:
-  - 分布式系统
-  - mit6.824
-date: 2018-11-27 12:14:59
+    - 分布式系统
+    - osdi
+    - mit6.824
+    - 离线计算
 ---
-
 
 ### 0x00 序
 
@@ -113,7 +109,7 @@ Map 和 Reduce 方法在执行过程中会`自动`被划分为多个任务，每
 2. 将程序复制到集群中的各个需要运行的机器上并启动
 3. Master 给空闲的机器分配Map 或者Reduce 任务，由于(1) 中说输入文件被划分了M块，分区函数 `mod R` 所以此时Map任务被划分为了M个任务，Reduce任务被划分了R个分区，同时最终结果也会产生 `<= R` 个最终输出的文件
 4. 执行Map任务的worker读取相应的输入块,解析后发送给用户自定义的Map程序，用户Map程序将处理后的中间结果保存在内存当中。
-5. 保存在内存中的中间结果会定期的被根据分区函数划分为`R个Region`写入本地磁盘，本地磁盘保存的`位置信息`会被传输到Master，Master将这些partation位置信息`转发`到Reduce 的worker。
+5. 保存在内存中的中间结果会定期的被根据分区函数划分为`R个区域`写入本地磁盘，本地磁盘保存的`位置信息`会被传输到Master，Master将这些partation位置信息`转发`到Reduce 的worker。
 6. Reduce worker 接收到这些位置信息后会通过`RPC调用`从Map Worker的磁盘中读取相应partation的中间结果，当Reduce读取了所有的中间结果的之后将`按照key进行一次排序`，因为多个worker任务产生的中间结果会被同一个Reduce worker 读取,所以为了保证结果有序还需要重新排序一次。
 7. reduce worker 遍历排序过的中间数据，给每个遇到的唯一的中间key，将这个key和对应的value传递到用户的reduce 方法中。reduce 方法的输出会被添加到这个分区最终输出文件中。
 8. 所有任务结束后会产生`R个`输出文件，不需要合并。
@@ -144,33 +140,33 @@ reduce方法 做的就是从一组map中获取到的中间key由于相同的key�
 
 #### 更多例子
 * 分布式grep
-```
-map 方法产生一行，如果这行与提供的规则匹配,reduce 方法仅仅提供将中间结果复制到输出即可。
-```
+
+> map 方法产生一行，如果这行与提供的规则匹配,reduce 方法仅仅提供将中间结果复制到输出即可。
+
 * 统计url 访问频率
-```
-map方法处理网页请求日志并且输出<url,1> ，reduce方法将所有具有相同url的值累加并添加到<url, total count>中
-```
+
+> map方法处理网页请求日志并且输出<url,1> ，reduce方法将所有具有相同url的值累加并添加到<url, total count>中
+
 * web反向链接图
-```
-map方法给每个 在每个源页面中找到了目标url 则 输出 <target, source> ,reduce 方法将所有的源地址连接到目标url输出<target, list(source)>
-```
+
+> map方法给每个 在每个源页面中找到了目标url 则 输出 <target, source> ,reduce 方法将所有的源地址连接到目标url输出<target, list(source)>
+
 * 每个域名的 term-vector
-```
-term vector 将一篇文档或者一组文档中最重要的单词描述为<word,frequency> ,map 方法为每个输入的文档产生一个<hostname, term vector>, reduce方法处理所有的预处理过的文档的 term vector  进行累加丢弃低频的 term vector   重新产生一个 <hostname, term vector>
-```
+
+> term vector 将一篇文档或者一组文档中最重要的单词描述为<word,frequency> ,map 方法为每个输入的文档产生一个<hostname, term vector>, reduce方法处理所有的预处理过的文档的 term vector  进行累加丢弃低频的 term vector   重新产生一个 <hostname, term vector>
+
 * 倒排索引
-```
-map方法解析文档并且输出<word,document id>,reduce 方法接收给定单词的所有输出，排序相应的文档id并且输出<word, list(document ID)>,输出结果形成了一组倒排索引，倒排索引通过简单的办法，跟踪到了单词在文档中的位置。
-```
+
+> map方法解析文档并且输出<word,document id>,reduce 方法接收给定单词的所有输出，排序相应的文档id并且输出<word, list(document ID)>,输出结果形成了一组倒排索引，倒排索引通过简单的办法，跟踪到了单词在文档中的位置。
+
 * 分布式排序
-```
-map方法从每条记录中提取key 输出<key,record>,reduce方法为空即可，因为从map获取中间结果的时候已经做了排序,切reduce只获得一个partation内的数据，则这个partaion内的数据已经是有序的了，所以什么都不用做。
-```
+
+> map方法从每条记录中提取key 输出<key,record>,reduce方法为空即可，因为从map获取中间结果的时候已经做了排序,切reduce只获得一个partation内的数据，则这个partaion内的数据已经是有序的了，所以什么都不用做。
+
 
 ### 0x05 实现
 
-上文已经`0x03 MapReduce 执行的过程`部分提到了MapReduce的执行过程,我们在本节会进一步谈到MapReduce库的实现细节。
+上文`0x03 MapReduce执行的过程`已经提到了MapReduce的执行过程,我们在本节会进一步谈到MapReduce库的实现细节。
 
 #### Master数据结构
 
@@ -189,31 +185,33 @@ master是将map任务产的中间数据位置传送到reduce任务的管道，�
 
 #### 容错
 
-自从MapReduce库被设计用来使用数百或者数千台机器，处理总量巨大的数据时。这个库必须以优雅的办法进行容错。
+因为MapReduce库被设计用来使用数百或者数千台机器，处理总量巨大的数据时。这个库必须以优雅的办法进行容错。
 
 ##### worker 失败
 
 * 失败检测: master 周期性的ping 每个worker。如果没有从worker收到一定数量的回复就会由master将woker标记为失败。
 
-* 失败处理: 任何由失败woker`完成的map任务`会被重置为他们初始的状态。因此该map任务有资格被调度到其他woker处理。与之类似的任何map 或者 reduce 任务在失败worker上`运行中`的都会被重置为空闲状态，变得有资格被重新调度。
+* 失败处理: 
+    * 任何由失败woker`完成的map任务`会被重置为等待执行的状态。因此该map任务有资格被调度到其他woker处理。
+    * 任何map 或者reduce任务在失败worker上`运行中`的都会被重置为等待执行状态(任务尚未被调度的状态，简单的说就是让这个任务重做)，变得有资格被重新调度。
 
 这里有个细节需要注意,已经完成的reduce任务不需要重置,而已经完成的map任务需要重置主要是因为:
 
-完成的map任务会被重新执行是因为他们的输出是存在失败worker的本地磁盘，因此哪些数据是不可被访问的。(而某些reduce任务需要获取这个数据所以要重新执行)完成reduce任务不需要重新执行因为，他们的输出存在了全局文件系统当中。
+完成的map任务会被重新执行是因为他们的输出是存在失败worker的本地磁盘，因此那些数据是不可被访问的。(而某些reduce任务需要获取这个数据所以要重新执行)完成reduce任务不需要重新执行因为，他们的输出存在了全局文件系统当中。
 
 当一个map任务首先被worker A执行然后由B执行(因为A失败了)，所有在执行reduce任务的worker都会被通知重新执行。任何一个还没有从A读取数据的worker将会从B读取数据。
 
-MapReduce 能够应对大规模worker失失败。MapReduce master 简单的重新执行由那些不可访问机器执行的任务。并且继续向前执行任务，最终完成MapReduce作业。论文中举了一个例子:在一个MapReduce作业期间，运行中的集群进行了网络维护，造成了80台机器在一段时间内不可访问，最后依然成功执行了任务。
+MapReduce 能够应对大规模worker失失败。MapReduce master 简单的重新执行由那些不可访问机器执行的任务。并且继续向前执行任务，最终完成MapReduce作业。
 
 
 ##### master 失败
 
-当前的实现是master失败就放弃MapReduce计算。客户端可以检测到这个状态,并且如果他们希望的话可以重新执行。
+当前MapReduce库的实现是master失败就放弃MapReduce计算。客户端可以检测到这个状态,并且如果他们希望的话可以重新执行整个MapReduce任务。主要是因为简化了设计只有单个master所以，继续执行未完成的任务是不可能的。
 
 
 ##### 失败处理的语义
 
-当用户执行的map和reduce操作是固定的函数，和固定的输入。MapReduce的分布式的实现产出相同的输入，就像整个程序没有错误串行执行一样。
+如果用户定义的Map 和 Reduce的函数的拥有确定的输入输出，那么这个函数在分布式环境下的执行结果与用户单机执行的结果是一致的。不管是否有遇到错误。
 
 为了实现这个特性MapReduce依赖于map 和 reduce 任务的输出是原子提交实现如下:
 ###### map 侧
@@ -250,7 +248,7 @@ MapReduce对存储进行了一定的优化主要是因为: 系统当中网络带
 因为MapReduce任务信息存储在master上，所以会占用内存等，所以不能无限的增加任务数。
 
 
-#### 备份任务
+#### 备份worker
 
 MapReduce 操作花费的时间变长，其中一个共同的原因是 落伍者（“straggler”）：一个机器花费了一长段明显不同时间去完成最计算任务中的最后几个map或者reduce任务。落伍者的出现很可能是因为系统负载过高，磁盘损坏，代码bug等一系列问题。
 
@@ -342,7 +340,18 @@ grep 程序扫描了 10^10 条100字节的记录，查找了比较少见的三�
 
 ![image](https://raw.githubusercontent.com/phantooom/blog/master/image/MapReduce/02.png)
 
-上图展示了计算进程随时间的变化，y轴表示输入数据扫描速率,速率会渐渐的增长当更多的机器被分配MapReduce任务的时候，峰值大约30Gb/s当1764个worker被分配任务的时候。随着map任务的结束，速率下降到0在80秒的时候，整个任务大概花废了150秒左右从开始到结束，包含了1分钟启动的开销。开销由于用户程序需要分发到所有的worker上，gfs打开1000个文件的延时，为了优化本地操作，获取必要的信息。
+上图展示了计算进程随时间的变化
+
+* x轴表示花费的时间
+* y轴表示输入数据扫描速率
+
+运行状态的解读
+
+* 随着被分配任务的worker的数量的增加速率渐渐提高
+* 当1764个worker被分配任务的时候出现了读取峰值，峰值大约30Gb/s
+* 随着map任务的结束，在80秒是读取速率下降到了0
+
+整个任务大概花费了150秒左右从开始到结束,包含了1分钟启动的开销。开销由于用户程序需要分发到所有的worker上，gfs打开1000个文件的延时，为了优化本地操作，获取必要的信息。
 
 #### 排序
 
