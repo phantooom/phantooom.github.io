@@ -1,7 +1,7 @@
 ---
 title: haystack 指北
 date: 2018-08-11 15:48:53
-categories: 存储
+categories: [分布式系统,分布式存储] 
 tags:
     - 对象存储
     - 分布式系统
