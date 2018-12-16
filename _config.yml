@@ -9,8 +9,8 @@ description: 专业系统研(yun)究(wei)者
 keywords: linux iaas 分布式系统 
 author: phantooom
 avatar: /images/head.jpeg
-language: zh-Hans
 timezone:
+language: zh-CN
 
 subnav:
   GitHub: "https://github.com/phantooom"
@@ -102,3 +102,10 @@ sitemap:
   path: sitemap.xml
 baidusitemap:
   path: baidusitemap.xml
+
+symbols_count_time:
+  symbols: true # 文章字数
+  time: true # 阅读时长
+  total_symbols: true # 所有文章总字数
+  total_time: true # 所有文章阅读中时长
+
