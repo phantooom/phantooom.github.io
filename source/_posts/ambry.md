@@ -2,6 +2,7 @@
 title: ambry LinkedIn 对象存储 论文翻译
 date: 2018-12-13
 categories: [分布式系统,分布式存储]
+keywords: ['分布式存储','对象存储','ambry','存储','mit6.824']
 tags:
     - 对象存储
     - 分布式系统
