@@ -62,7 +62,7 @@ haystack 是facebook 开发的对象存储系统,用来存储facebook的照片,�
 
 ##### 基于NFS的设计
 
-![image](https://raw.githubusercontent.com/phantooom/blog/master/image/haystack/01.png)
+![image](https://cdn.jsdelivr.net/gh/phantooom/image-box/haystack/01.png)
 
 `背景`
 
@@ -113,7 +113,7 @@ TIPS: 元数据分为两种需要注意区分 一种 **是应用元数据** 一�
 
 ##### 设计概览
 
-![image](https://raw.githubusercontent.com/phantooom/blog/master/image/haystack/02.png)
+![image](https://cdn.jsdelivr.net/gh/phantooom/image-box/haystack/02.png)
 
 haystack 分为三个组件
 
@@ -134,7 +134,7 @@ haystack 分为三个组件
 
 一个典型的url `http://<CDN>/<Cache>/<Machine id>/<Logical volume, Photo>`
 
-![image](https://raw.githubusercontent.com/phantooom/blog/master/image/haystack/03.png)
+![image](https://cdn.jsdelivr.net/gh/phantooom/image-box/haystack/03.png)
 
 `上传流程`
 
@@ -177,7 +177,7 @@ cache从CDN或者用户侧接收请求，本质上是一个DHT。
 
 存储数据的节点，通过id cookie lvm machine 等信息可以直接返回图片。
 每个Store 管理多个物理卷，每个物理卷存在一个超级块结构如下图。通过逻辑卷id 在内存中查找对应的元数据,通过文件的offset操作既可定位到超级块中的图片位置并返回。
-![image](https://raw.githubusercontent.com/phantooom/blog/master/image/haystack/04.png)
+![image](https://cdn.jsdelivr.net/gh/phantooom/image-box/haystack/04.png)
 
 每个文件称之为一个needle结构如下
 * needle
@@ -221,8 +221,8 @@ TIPS: 原文中没有描述何时更新directory的应用元数据,个人猜测�
                 * 问题: 有些写入的needle没有对应的索引无法通过索引恢
                 * 解决: 从索引文件最后一个被索引的文件，开始读取超级块进行恢复
         
-![image](https://raw.githubusercontent.com/phantooom/blog/master/image/haystack/05.png)
-![image](https://raw.githubusercontent.com/phantooom/blog/master/image/haystack/06.png)
+![image](https://cdn.jsdelivr.net/gh/phantooom/image-box/haystack/05.png)
+![image](https://cdn.jsdelivr.net/gh/phantooom/image-box/haystack/06.png)
 
 
 * 文件系统
@@ -245,12 +245,12 @@ TIPS: 原文中没有描述何时更新directory的应用元数据,个人猜测�
 
 * 照片请求特征
     * 98%的照片请求发生在feed和相册,2天内请求多,随后降低。
-![image](https://raw.githubusercontent.com/phantooom/blog/master/image/haystack/07.png)
+![image](https://cdn.jsdelivr.net/gh/phantooom/image-box/haystack/07.png)
     * 小图的请求比例高，原因是feed流和相册的列表均展示的是缩略图，用来降低延时,下图展示了4种尺寸的图片的请求数量和比例
-![image](https://raw.githubusercontent.com/phantooom/blog/master/image/haystack/08.png)
+![image](https://cdn.jsdelivr.net/gh/phantooom/image-box/haystack/08.png)
 
 * Haystack Directory 通过简单的hash策略有效的负载了服务,如下图所示，400-600个请求每分钟
-![image](https://raw.githubusercontent.com/phantooom/blog/master/image/haystack/09.png)
+![image](https://cdn.jsdelivr.net/gh/phantooom/image-box/haystack/09.png)
 
 * Haystack Store 
     * 实验装置
@@ -262,18 +262,18 @@ CPUs
     * Benchmark 
         * 工具 Haystress 自研工具发送http请求接口
         * 结果如下图所示:
-        ![image](https://raw.githubusercontent.com/phantooom/blog/master/image/haystack/10.png)
+        ![image](https://cdn.jsdelivr.net/gh/phantooom/image-box/haystack/10.png)
         * A(读取64K) 用例吞吐量达到了原始存取的85%吞吐,延时只增加了17%
         * B(读取70% 8K 30% 64K)
         * 其他的均为64K
     * 负载
         * 考察一组机器的负载，配置相同，一部分可写可读，一部分只读。如下图所示
-        ![image](https://raw.githubusercontent.com/phantooom/blog/master/image/haystack/12.png)
+        ![image](https://cdn.jsdelivr.net/gh/phantooom/image-box/haystack/12.png)
         * 周日与周一是上传文件的高峰
         * 线上环境一般会开启多个writter
         * 可写的服务器,删除的操作也很多
         * 当一个可写的服务写入越来越多的图片后获取图片的请求比例随之增加,但请求的延时并没有显著的增加如下图所示
-        ![image](https://raw.githubusercontent.com/phantooom/blog/master/image/haystack/13.png)
+        ![image](https://cdn.jsdelivr.net/gh/phantooom/image-box/haystack/13.png)
         * 多个writter写入非常平稳,尽管当写入流量非常大的时候，主要原因raid控制器提供了buffer作为缓冲。
         * 可写的节点主要受三部分因素影响
             *  照片数的增长读流量的增长

@@ -44,7 +44,7 @@ Ambry 已经在生产环境中成功的运行 24 个月，跨 4 个数据中心�
 # 2. 系统概览
 在这个章节我们讨论了Ambry的总体设计，包含了系统的高层架构(2.1)，partition的概念(2.2)和支持的操作(2.3)
 
-![image](https://raw.githubusercontent.com/phantooom/blog/master/image/ambry/01.jpg)
+![image](https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/01.jpg)
 
 ## 2.1 架构
 Ambry被设计为一个全分布式的系统，可以跨地区数据中心。整体的架构展示在了图1中。系统主要有三部分组成：Frontends: 用来接收和路由请求。Datanodes:存储真实数据。 Cluster Managers：维护集群状态信息。每个数据中心拥有并且分布式的运行自己的一套组件。Frontends 与 Datanodes 之间是完全独立的。Cluster Managers之间是同步的，同步通过zk实现。我们在下边提供了各组件的概览(详细的介绍在4章)。
@@ -60,7 +60,7 @@ Ambry被设计为一个全分布式的系统，可以跨地区数据中心。整
 
 一个partition的实现是使用一个预分配的大的append-only的日志文件实现的。目前，在系统的生命周期中，partition是固定大小的。partition的大小需要足够大，来抵消partition的额外开销。例如，会为每个partition维护额外的数据结构，像索引, journal，布隆过滤器(4.3章),当partition足够大时这些开销是微不足道的。另一方面，故障恢复和重建的时候应该很快。我们在我们的集群中使用100GB 的partition。因为重建可以并行的从多个replica中进行，我们发现即使是100GB大小的partition可以在几分钟内重建完毕。
 
-![image](https://raw.githubusercontent.com/phantooom/blog/master/image/ambry/02.jpg)
+![image](https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/02.jpg)
 
 Blob是顺序的写入到partition中用作put和delete 的 entry(图2)。所有的entry都包含一个header(存储entry中field的偏移量)和blob id。 blob id是唯一标识，由Frontend 在put/delete 生成。在get/delete 操作时候用来定位blob。这个id包含partition id，代表blob的位置(8Bytes),后面接着是32Bytes的UUID，代表blob的id。id冲突可能存在，但是概率非常低(< 2^230)。当冲突发生时两个put操作必须生成同样的id并且写到同一个partition。冲突会在Datanodes中解决，将后put的失败即可。
 
@@ -74,7 +74,7 @@ put entries 也包含了预定义的属性，包括blob size， ttl，创建时�
 
 delete 与 put 操作类似，但是delete作用于已经存在blob上，默认的情况下，删除的结果是为一个blob 添加一个delete的entry(带有delete 标记，软删除)。被删除的blob会周期性的清理，使用一个内部的compaction机制。在compaction之后，只读的partition如果存在足够的空闲空间，则会转变为可读可写的。文章的剩余部分我们主要关注put，因为它与delete类似。
 
-![image](https://raw.githubusercontent.com/phantooom/blog/master/image/ambry/03.jpg)
+![image](https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/03.jpg)
 ## 2.3 操作
 Ambry拥有轻量级的API，仅支持三个操作: put ,get ,delete。API请求的处理过程在图三中进行了展示。当收到请求时，Frontend有选择的对请求进行一些安全检查，然后使用Router库(包含了最核心的处理逻辑)，Router库随机选择一个partition，负责与Datanode进行通信，同时处理请求。在put操作中，partition是随机选择的(主要目的是为了数据的均衡)，并且在get/delete 操作中,partition是从blob id中获取的。
 
@@ -96,7 +96,7 @@ Ambry拥有轻量级的API，仅支持三个操作: put ,get ,delete。API请求
 Ambry 定义了 ideal 状态 (已经负载均衡的状态)，ideal状态包含三个(idealRW=totalNumRW / numDisks, idealRO=totalNumRO / numDisks, idealUsed=totalUsed / numDisks）可以由 只读/可读可写的总量 /硬盘使用的总空间 除以集群中硬盘的总数得到。如果一个磁盘有更多的(或更少的)只读/可读可写的partition/磁盘使用率，会被认定为高于(或低于)ideal。
 
 再均衡算法尝试到达ideal状态，通过使用将高于ideal状态磁盘的partition移动到低于 ideal状态的磁盘来实现。主要分为两个阶段如下代码所示：
-![image](https://raw.githubusercontent.com/phantooom/blog/master/image/ambry/04.jpg)
+![image](https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/04.jpg)
 
 阶段1-移动到partition池：在这个阶段，Ambry将高于ideal状态磁盘的partition移动到一个池子里，这个池子称为 partition pool (6-13行)，这个阶段的结尾，不会有磁盘高于ideal状态，除非移动了partition会造成磁盘低于ideal状态。
 
@@ -110,10 +110,10 @@ Ambry从可读可写的partition开始(最主要的影响因素)，基于idealRW
 这章我们将更详细的讨论ambry的主要组件。我们将详细的描述Cluster Manager(4.1章)存储的状态，此外还讨论了Frontends的职责包括分块和失败检测（4.2章），还有Datanodes（4.3章）维护的数据结构。
 ## 4.1 Cluster Manager
 Cluster Manager 负责维护集群的状态，每个数据中心有一个本地的Cluster Manager实例，使用zk与其他实例保持同步。Cluster Manager存储的，由硬件和逻辑布局组成的状态非常小(总和小于几MB)。
-![image](https://raw.githubusercontent.com/phantooom/blog/master/image/ambry/05.jpg)
+![image](https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/05.jpg)
 ### 4.1.1 硬件布局
 硬件布局包含了集群的物理结构信息。例如数据中心，Datanodes, 磁盘的分布。同样也为每个磁盘维护了原始容量和状态，例如健康(UP) 或者故障(DOWN)。表1是一个硬件布局的例子，如表所示，Ambry工作在一个异构的环境中，不同的硬件不同的配置不同的数据中心。
-![image](https://raw.githubusercontent.com/phantooom/blog/master/image/ambry/06.jpg)
+![image](https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/06.jpg)
 ### 4.1.2逻辑布局
 逻辑布局维护了partition的replica的物理位置。也维护了每个partition的状态(可读可写/只读)。为了检测partition的状态，manager周期行了与Datanode进行通信，请求他们partition的状态。逻辑布局用于选择一个partition安置新创建的blob(put 操作)，也用于定位一个给定的replica的Datanode(所有操作)。一个示例布局如表2所示，partition的replica可以被安置在一个数据中心的多个Datanode，也可以在多个数据中心。此外一块硬盘(例如 DC 1：Datanode 1: disk 1) 可以包括不同partition的replica，有一些只读，有一些可读可写。添加一个partition是通过更新Cluster Manager实例存储的逻辑布局实现的。
 ## 4.2 Frontend 层
@@ -131,14 +131,14 @@ Router库有处理请求和与Datanode通信的核心逻辑。Frontend简单的�
 **策略路由**：当接收到一个请求，库会决定选择哪个partition(put操作时候随机选择，get/delete 操作从blob id中提取partition)。然后基于2.3章中讨论的策略({one, k, majority, all}，与相应的replica进行通讯，直到请求成功或失败。
 
 **分块**：非常大的blob(例如 视频) 造成了负载不均，小块的blob，造成了固有的高延时。为了减缓这些问题，Ambry将大的blob分为大小相等的单元称之为分块(chunk)，大的分块不能完全解决大blob的挑战，小的分块将会带来过多的额外开销。基于我们目前的大blob分布我们发现最有效的分块大小时4-8MB。
-![image](https://raw.githubusercontent.com/phantooom/blog/master/image/ambry/07.jpg)
+![image](https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/07.jpg)
 
 在put操作期间，一个blob b 被分为k 块{c1,c2,c3....ck},每个分块被当做一个独立的blob，每个分块使用相同的步骤，作为一个普通的blob被执行put操作(2.3章)，大多数会被分散到不同的partition。也会被分配一个无二的分块id 与 blob id格式相同。为了为了能够召回b, Ambry为blob b 创建了一个元数据(metadata)blob b-metadata，b-metadata存储了分块的数量，和顺序排列的分块id。如图4所示。这个元数据blob最后作为一个普通的blob，put到了Ambry中，然后返回b-metadata 的blob id 作为b的 blob id。如果put操作在写完所有分块之前失败，那么将会将写入的分块标记为删除，然后重做操作。
 
 在get时，元数据blob会被召回，然后从中提取到分块id，Ambry使用大小为s的滑动缓冲区召回blob，然后Ambry并行(因为大部分的分块独立的存储在不同的Datanode中)的查找blob 前s个分块，当滑动缓冲区的第一个分块已经被召回了，Ambry将缓冲区滑动到下一个分块，如此往复。整个blob开始返回开始于第一个分块被召回。
 
 尽管，在这种机制下需要额外的put/get，但总的来说我们改善了延时，因为多个分块写和召回都是并行的。
-![image](https://raw.githubusercontent.com/phantooom/blog/master/image/ambry/08.jpg)
+![image](https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/08.jpg)
 
 **Zero-cost 故障检测**: 在大型系统中故障频繁的发生。从无响应，连接超时，到磁盘io问题。因为Ambry需要一个故障检测机制，像心跳或者ping那样利用请求消息。在实践中我们发现我们的检测机制是简单，有效，使用很少的带宽。这个机制如图5所示，在这种方法中，Ambry在最近的检查周期，不停的追踪请求连续失败的特定Datanode(或者磁盘) 。如果失败的数量达到了最大失败的上限(在我们的例子中是2)，Datanode被标记为 临时下线一段时间，Datanode在这种状态下排队的所有请求最终都会超时，并且需要用户重试。在一段时间之后，Datanode会转变为临时可用状态，当Datanode在临时可用的状态，可以接收请求，当收到的请求仍然失败会转为临时不可用状态，如此往复，直到接收请求不失败，Datanode会被标记为可用，再次恢复到正常状态。
 
@@ -153,7 +153,7 @@ Datanode 负责维护真实的数据，每个Datanode管理一些磁盘，并且
 * **保持所有的fd打开**：因为partition非常大(我们设置为100GB)，安置在Datanode上的partition的replica数量非常少(数百)，因此Ambry所有时间保持fd打开。
 * **zero copy get**：当读取一个blob是，Ambry利用 zero copy 机制，例如内核直接从磁盘拷贝数据到网络缓冲区不经过程序，这个是可行的，因为Datanode在get操作中不会对数据进行任何操作。
 
-![image](https://raw.githubusercontent.com/phantooom/blog/master/image/ambry/09.jpg)
+![image](https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/09.jpg)
 ### 4.3.1 索引
 为了以一个低的延时找到blob在partition replica中为位置，Datanode为每一个replica维护了一个轻量级的内存索引，如图6所示。索引根据blob id进行排序。构建了一个blob id 到 blob实体起始偏移量的映射。当blob被 put(如blob 60)或者delete(blob 20) 时这个索引是实时更新的。
 
@@ -173,7 +173,7 @@ Datanode 负责维护真实的数据，每个Datanode管理一些磁盘，并且
 
 * **第二阶段**：这个阶段replica缺少blob，发送一个请求，包含所有缺失的blob id，然后缺失的blob会被发送并添加到replica。
 
-![image](https://raw.githubusercontent.com/phantooom/blog/master/image/ambry/10.jpg)
+![image](https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/10.jpg)
 为了快速的找出最近写入的blob，复制算法为每个replica维护了一个数据结构，称之为journal。journal是一个内存的缓存，其中维护了最近blob，按照offset进行排序，图7展示了两个replica(r1,r2)的两个journal的例子，两阶段复制过程从r1向r2发起，offset为600。在第一阶段，r1请求offset在600之后的所有最近添加到r2的blob id，r2 使用journal 返回了一个blob id的列表 B={55,40,70,90}，然后r1 过滤出缺少的blob{55,90}.在第二阶段，r1接收到缺少的blob，添加blob到replica的末尾，同时更新journal，索引和lastoffset。
 为了改善系统的效率和扩展能力，复制算法使用了如下的优化：
 
@@ -196,13 +196,13 @@ benchmark有三种模式： 写，读，读写。在写模式下，许多clinent
 我们部署了单节点Datanode的Ambry。这个Datanode运行在一个24cpu ，64g内存，14 块1T HDD，和一个全双工的1Gb/s的以太网卡的服务器上。4G内存被用作Datanode服务内部使用，剩余的全部内存作为系统缓存。我们在每个磁盘上创建个8个replica。一共122个partition。14个磁盘使用了1Gb/s的网卡看起来有些多余，但是对于磁盘延时的主要影响因素是小文件的seek操作。因为partition中大部分blob是小的(<50kb)，我们需要使用多个磁盘进行并行(更多详情在6.1.4章)。值得注意的是我们将Ambry设计为具有性价比的系统，所以使用了廉价的机械盘。
 
 client从相同的数据中心的机器上发送请求，这些client充当Frontends，直接向Datanode发送请求，之前讨论的微型benchmark工具被用来产大小不同的blob{25KB,50KB,100KB,250KB,500KB,1MB,5MB},我们没有继续产生超过5MB的blob，因为5MB已经超过单个分块大小了。
-![image](https://raw.githubusercontent.com/phantooom/blog/master/image/ambry/11.jpg)
+![image](https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/11.jpg)
 
 ### 6.1.3 client数量的影响
 我们运行了微型benchmark生成变化的blob大小，当线性增加client数量时。对于读模式，第一个写的周期我们设置了写6倍于内存的大小的数据。图8a展示了以MB/s表示的系统提供的吞吐。适当添加client吞吐会增长，直到饱和。吞吐饱和发生在网络带宽的75%~85%。唯一的例外就是读取小的blob，主要是因为频繁的seek(6.1.4章讨论)。饱和发生的很快(通常client<=6)因为client在benchmark中会尽可能的发送请求。
 图8b展示了经过blob大小标准化后的延时(例如平均延时/blob大小)。在抵达饱和点钱延时几乎是一个常数，然后线性增长，线性增长的原因是因为，系统不能处理额外的请求了。
 
-![image](https://raw.githubusercontent.com/phantooom/blog/master/image/ambry/12.jpg)
+![image](https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/12.jpg)
 
 ### 6.1.4 blob 大小的影响
 在图9a和9b中我们分析了最大的吞吐(20 clinets)和负载， 在不同blob大小下的情况。对于大的对象(>200KB)，最大吞吐put(MB/s)一直恒定，同时接近带宽的最大负载。类似的吞吐每秒请求的吞吐也成比例的增加。然而对于读和读写来说，小文件的读的吞吐打破线性规律。规律被打破的原因是因为微型benchmark工具是随机的读取blob，导致了频繁的磁盘seek。对于小文件存在seek放大影响。为了进一步分析磁盘，使用Bonnie++(一个io benchmark工具，用来测量磁盘性能)，我们确定磁盘seek是小文件延时的主要原因。例如当读取一个50KB的blob，超过94%的延时是由硬盘seek产生的(6.49ms用于磁盘seek，0.4ms用于读取数据)。
@@ -211,12 +211,12 @@ Datanode读和写工作分别利用了流入，流出链路。但是读写模式
 
 图9c展示了延时根据blob大小变化的趋势。这些结果未到达饱和点，只启用了两个client。与吞吐相似延时线性增长，小文件除外。读的延时更高，因为大多数的读都会引发磁盘seek，然而写请求是批量写入的。读写延时位于 读和写延时之间，因为读写是由读和写混合而成的。
 
-![image](https://raw.githubusercontent.com/phantooom/blog/master/image/ambry/13.jpg)
+![image](https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/13.jpg)
 
 ### 6.1.5 延时的变化
 对于请求延时来说，尾部和变化都很重要。图10展示了2个client的读，写，读写累积分布图。这个累积分布图中的读和写都非常接近一个垂直线，并且带有一个短的尾部，并且大多数值都接近中位数。读模式下(50KB 大小的blob)，会跳到0.15附近，主要是因为小文件中的一小部分能够直接由Linux cache提供服务，cache会比硬盘快几个数量级(6.1.6章)。读写模式累积分布图是由读和写混合组成，在0.5处发生改变。主要是因为50%读和写的工作模式造成的。
 
-![image](https://raw.githubusercontent.com/phantooom/blog/master/image/ambry/14.jpg)
+![image](https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/14.jpg)
 ### 6.1.6 Linux Cache的影响
 当以50KB大小的blob 和 2个 client的配置下运行微型benchmark工具时，提供两种配置。1）在读之前写6倍于内存大小的数据，所以大多数的请求(83%)是由硬盘提供服务。2)写数据大小等于内存的数据，保证所有数据都在内存当中(读缓存)。表3比较了这两种模式。
 
@@ -225,26 +225,26 @@ Datanode读和写工作分别利用了流入，流出链路。但是读写模式
 ### 6.2 跨数据中心优化
 我们分析了我们的复制算法在3个分布在全美国的LinkedIn数据中心{DC1,DC2,DC3},本章所有的实验都来自于生产环境。
 
-![image](https://raw.githubusercontent.com/phantooom/blog/master/image/ambry/15.jpg)
+![image](https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/15.jpg)
 
 ### 6.2.1 复制落后
 我们定义了一对replica(r1,r2)之间的复制落后，用r2使用的最高的offset与r1的上次同步的offset之前的不同表示。需要主要不是所有的落后的数据都要被复制到r1，因为他也可以从别的replica获取到缺失的blob。
 
 我们测量了给定Datanode上所有的replica与集群中其他replica之间的落后。我们发现了超过85%的值为0.图11展示了不同数据中心的不为0值的累积分布。对于100GB的partition（所有的数据中）95%的落后小于1KB，数据中心3有更多的落后，因为他距离其他的数据中心相对远。
 
-![image](https://raw.githubusercontent.com/phantooom/blog/master/image/ambry/16.jpg)
+![image](https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/16.jpg)
 ### 6.2.2复制带宽
 Ambry写数据到其他数据中心依赖后台复制，我们测量了24小时内用于数据中心间复制的网络带宽。如图12所示。带宽总计小于10MB/s，所有的数据中心都类似。并且与请求比率相关，每天的带宽使用模式都类似。这个是非常小，因为相同的replica我们采用了批量复制，也因为主要是读的流量比重大。
 
-![image](https://raw.githubusercontent.com/phantooom/blog/master/image/ambry/17.jpg)
+![image](https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/17.jpg)
 
 图13展示了每个Datanode上的平均复制带宽，包含了数据中心内和数据中心之间的复制。数据中心内的带宽很小(200B/s 95%分位)，与之相对的数据中心间的带宽有150KB/s 在95%分位 (相差1000倍)。数据中心之间带宽高的原因主要是因为异步写。然而数据中心之间的带宽仍然很小(仅占1Gb/s 链路的0.2%)。三个数据中心有点小的不同，主要是因为不同的请求和不同的接收。
 
-![image](https://raw.githubusercontent.com/phantooom/blog/master/image/ambry/18.jpg)
+![image](https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/18.jpg)
 
 图14展示了一个放大的图片，这个图片只包含数据中心之间的带宽。数据中心间的复制有一个短的尾部，在95%和5%分位可能存在3倍的差异。这个尾部产生的原因是因为Ambry中负载均衡的设计。数据中心内复制也会有更长尾部。也存在一些为零的值(图中忽略掉了)。因此复制可能不消耗带宽(数据中心内)，或者消耗几乎所有的带宽(数据中心间)。
 
-![image](https://raw.githubusercontent.com/phantooom/blog/master/image/ambry/19.jpg)
+![image](https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/19.jpg)
 
 ### 6.2.3 复制延时
 我们定义了复制延时，使用一次复制协议花费时间。例如 T接收到缺失的blob -T发起同步时间。图15展示了我们生产环境中数据中心间与数据中心内平均复制延时的累积分布图。
@@ -265,23 +265,23 @@ Ambry写数据到其他数据中心依赖后台复制，我们测量了24小时�
 ### 6.3.2 实验设置
 模拟器运行在单个数据中心，拥有十个Frontend节点。这个实验起初有15个Datanodes，每个都带有10个4TB 硬盘 和1200个100GB大小的partition，每个partition有三副本。当达到partition和Datanodes的需要增加的节点时，600个partition和Datanodes会被添加。模拟器运行了超过400周(几乎8年)并且拥有240个Datanodes。测量请求速率，磁盘使用率，和数据迁移时，模拟器运行了两种，一种是带有负载匀衡的，另外一个不带负载均衡，其他配置均相同。
 
-![image](https://raw.githubusercontent.com/phantooom/blog/master/image/ambry/20.jpg)
+![image](https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/20.jpg)
 
 ### 6.3.3 请求速率
 我们测量了每个磁盘的各个时间的读取速率(KB/s)，图16展示了系统带有负载均衡和没负载均衡的平均，标准差，最大，最小值。写的结果相似，因为空间原因被移除了。
 平均值，是比较理想的，是一个逐步下降的函数。下降的点是因为新的Datanodes被添加到了集群中。在没有rebalancing的case中大部分老的磁盘都是只读的，几乎没有流量，然而新添加的磁盘收到了绝大部分的请求。因此最小值接近0。所以标准差和最大值有重要的意义(最大值比平均值大3-7倍，标准差比平均值大1-2倍)。当rebalancing机制添加后，标准差下降到接近为0.我们推断，Ambry的负载均衡是有效的。
 
-![image](https://raw.githubusercontent.com/phantooom/blog/master/image/ambry/21.jpg)
+![image](https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/21.jpg)
 
 ### 6.3.4 磁盘使用情况
 我们分析了带负载均衡和不带负载均衡的磁盘使用比例。例如使用的空间除以磁盘的总空间，如图17所示，没有负载均衡的最大值一直处于容量上限。因为一些磁盘已经满了，然而当新的Datanodes被添加进来时最小值接近于0.带有负载均衡的最小值和最大值接近平均值，最小值会临时下降，直到负载均衡完成。此外标准差下降明显，接近于0，偶尔跳起因为DataNodes被添加到集群中。
 
-![image](https://raw.githubusercontent.com/phantooom/blog/master/image/ambry/22.jpg)
+![image](https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/22.jpg)
 
 ### 6.3.5  这段时间的评估
 我们评估了过去这段时间的改变，通过测量400周内的请求速率，磁盘使用的区间(最大值减最小值)和标准差。如表4所示。负载均衡有显著的效果，改善区间6-9倍和8-10倍标准差。
 
-![image](https://raw.githubusercontent.com/phantooom/blog/master/image/ambry/24.jpg)
+![image](https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/24.jpg)
 ### 6.3.6 数据迁移
 
 当负载均衡被触发时，我们测量了由于负载均衡需要时造成的数据迁移，为了达到ideal状态的最小数据迁移。当添加使用率在ideal状态与当前状态之间且使用在ideal状态之上的磁盘时，我们计算了最最小数据迁移量。这个值比最小值低一点点。因为数据移动是按照partition移动的。如图18所示，数据建议非常接近最小迁移，有时还比那个值低，说明我们的算法是非常优秀的。需要特别注意的，负载均衡算法当添加或者删除磁盘使用率会高于或者低于ideal状态时，通常不会删除(或者添加)partition。因为有时这么做会打破平衡。
@@ -307,5 +307,5 @@ Facebook 已经设计了F4，一个blob 存储，对老数据使用纠删码来�
 # 9 致谢
 略
 # 10 参考
-![image](https://raw.githubusercontent.com/phantooom/blog/master/image/ambry/23.jpg)
+![image](https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/23.jpg)
 
