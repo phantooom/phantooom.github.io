@@ -10,7 +10,7 @@ keywords: linux iaas 分布式系统
 author: phantooom
 avatar: /images/head.jpeg
 timezone:
-language: zh-Hans
+language: zh-CN
 
 subnav:
   GitHub: "https://github.com/phantooom"
@@ -41,7 +41,6 @@ skip_render:
 new_post_name: :title.md # File name of new posts
 default_layout: post
 titlecase: false # Transform title into titlecase
-external_link: true # Open external links in new tab
 filename_case: 0
 render_drafts: false
 post_asset_folder: false
@@ -92,9 +91,6 @@ deploy:
   branch: master
 excerpt_link: 展开全文
 reward_type: 2
-reward_wording: '谢谢你请我充b站大会员'
-alipay: /images/ali.png
-weixin: /images/wx.png
 toc: 2
 top: true
 share_jia: true
@@ -108,4 +104,6 @@ symbols_count_time:
   time: true # 阅读时长
   total_symbols: true # 所有文章总字数
   total_time: true # 所有文章阅读中时长
+  awl: 3
+  wpm: 80
 
