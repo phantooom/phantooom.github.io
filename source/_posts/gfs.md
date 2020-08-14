@@ -85,7 +85,8 @@ GFS上层应用通过客户端与master进行交互与ChunkServer进行数据读
 4. master返回chunk的句柄，及chunk的位置信息
 5. 客户端将master使用 "文件-chunk索引号" 作为key将master的返回信息作为value进行缓存。
 6. 客户端向其中一个副本发起请求（通常选择最近的）
-7. 
+7. 主副本回复客户端结果，如果发生错误了，客户端会处理错误，重新重试3-7步直到成功。此时数据会处于不一致的状态
+
 ![image](https://cdn.jsdelivr.net/gh/phantooom/image-box/gfs/gfs-02.png)
 
 
