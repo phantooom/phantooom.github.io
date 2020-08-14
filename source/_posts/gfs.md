@@ -38,7 +38,7 @@ GFS 的产生背景是 Google 数据量的持续增长下产生的总体特征�
 GFS没有实现标准的posix API但是支持文件目录并支持如下操作，之所以不实现posix的原因是，兼容posix语义非常复杂，并且posix语义也并不适合 GFS 所需要支撑的上层应用。
 
 * create
-* oepn
+* open
 * write
 * read
 * close
