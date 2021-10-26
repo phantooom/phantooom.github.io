@@ -1,0 +1,45 @@
+name: Deployment
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  hexo-deployment:
+    runs-on: ubuntu-latest
+    env:
+      TZ: Asia/Shanghai
+
+    steps:
+    - name: Checkout source
+      uses: actions/checkout@v2
+      with:
+        submodules: true
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v1
+      with:
+        node-version: '14.x'
+
+    - name: Install dependencies & Generate static files
+      run: |
+        rm -rf node_modules
+        rm package-lock.json
+        rm package.json
+        node -v
+        npm i -g hexo-cli
+        npm i
+        hexo clean
+        hexo g
+    - name: Deploy to Github Pages
+      env:
+        GIT_NAME: phantooom
+        GIT_EMAIL: xiaorui.zou@gmail.com
+        REPO: github.com/phantooom/phantooom.github.io
+        GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      run: |
+        cd ./public && git init && git add .
+        git config --global user.name $GIT_NAME
+        git config --global user.email $GIT_EMAIL
+        git commit -m "Site deployed by GitHub Actions"
+        git push --force --quiet "https://$GH_TOKEN@$REPO" master:master
