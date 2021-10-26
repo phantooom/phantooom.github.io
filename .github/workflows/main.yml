@@ -32,13 +32,11 @@ jobs:
       env:
         GIT_NAME: phantooom
         GIT_EMAIL: xiaorui.zou@gmail.com
-        REPO: github.com/phantooom/phantooom.github.io
-        GH_TOKEN: ${{ secrets.GH_TOKEN }}
       run: |
         git config --global init.defaultBranch master
         git config --global user.name $GIT_NAME
         git config --global user.email $GIT_EMAIL
         cd public && git init && git add .
         git commit -m "Site deployed by GitHub Actions"
-        git remote add blog https://$GH_TOKEN@github.com/phantooom/phantooom.github.io.git
+        git remote add blog https://${{ secrets.GITHUB_TOKEN }}@github.com/phantooom/phantooom.github.io.git
         git push --force --quiet blog master
