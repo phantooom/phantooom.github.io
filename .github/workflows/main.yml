@@ -25,13 +25,6 @@ jobs:
       run: |
         node -v
         npm install hexo-cli -g 
-        rm -rf node_modules
-        npm install -g npm-check
-        npm-check
-        npm install -g npm-upgrade
-        npm-upgrade
-        npm update -g
-        npm update --save 
         npm i
         hexo clean
         hexo g
