@@ -52,7 +52,7 @@ language_switcher: false
 
 footer:
   # Specify the date when the site was setup. If not defined, current year will be used.
-  #since: 2015
+  since: 2018
 
   # Icon between year and copyright info.
   icon:
@@ -64,12 +64,12 @@ footer:
     color: "#ff0000"
 
   # If not defined, `author` from Hexo `_config.yml` will be used.
-  copyright: bpcloud
+  copyright:
 
   # Powered by Hexo & NexT
   powered: true
 
-  # Beian ICP and gongan information for Chinese users. See: http://www.beian.miit.gov.cn, http://www.beian.gov.cn
+  # Beian ICP and gongan information for Chinese users. See: https://beian.miit.gov.cn, http://www.beian.gov.cn
   beian:
     enable: false
     icp:
@@ -88,8 +88,8 @@ footer:
 creative_commons:
   license: by-nc-sa
   sidebar: false
-  post: true
-  language: zh-CN
+  post: false
+  language:
 
 
 # ---------------------------------------------------------------
@@ -103,7 +103,7 @@ scheme: Pisces
 #scheme: Gemini
 
 # Dark Mode
-darkmode: true
+darkmode: false
 
 
 # ---------------------------------------------------------------
@@ -116,16 +116,11 @@ darkmode: true
 # When running the site in a subdirectory (e.g. yoursite.com/blog), remove the leading slash from link value (/archives -> archives).
 # External url should start with http:// or https://
 menu:
-  home: / || home
-  about: /about/ || user
-  tags: /tags/ || tags
-  categories: /categories/ || th
-  archives: /archives/ || archive
-  #home: / || fa fa-home
-  #about: /about/ || fa fa-user
-  #tags: /tags/ || fa fa-tags
-  #categories: /categories/ || fa fa-th
-  #archives: /archives/ || fa fa-archive
+  home: / || fa fa-home
+  about: /about/ || fa fa-user
+  tags: /tags/ || fa fa-tags
+  categories: /categories/ || fa fa-th
+  archives: /archives/ || fa fa-archive
   #schedule: /schedule/ || fa fa-calendar
   #sitemap: /sitemap.xml || fa fa-sitemap
   #commonweal: /404/ || fa fa-heartbeat
@@ -182,10 +177,10 @@ site_state: true
 # Key is the link label showing to end users.
 # Value before `||` delimiter is the target permalink, value after `||` delimiter is the name of Font Awesome icon.
 social:
-  GitHub: https://github.com/phantooom || github
-  E-Mail: mailto:xiaorui.zou@gmail.com || envelope
-  知乎: https://www.zhihu.com/people/zoubapi || 知乎
-  LinkedIn: https://www.linkedin.com/in/%E7%91%9E-%E9%82%B9-30427a101/ || linkedin
+  GitHub: https://github.com/phantooom || fab fa-github
+  E-Mail: mailto:xiaorui.zou@gmail.com || fa fa-envelope
+  zhihu: https://www.zhihu.com/people/zoubapi || fab fa-zhihu
+  LinkedIn: https://www.linkedin.com/in/%E7%91%9E-%E9%82%B9-30427a101/ || fab fa-linkedin
   #GitHub: https://github.com/yourname || fab fa-github
   #E-Mail: mailto:yourname@gmail.com || fa fa-envelope
   #Weibo: https://weibo.com/yourname || fab fa-weibo
@@ -271,12 +266,14 @@ tag_icon: false
 reward_settings:
   # If true, reward will be displayed in every article by default.
   enable: true
-  animation: false
+  animation: true
   comment: 谢谢你请我充B站大会员
 
 reward:
   wechatpay: /images/wx.png
   alipay: /images/ali.png
+  #wechatpay: /images/wechatpay.png
+  #alipay: /images/alipay.png
   #paypal: /images/paypal.png
   #bitcoin: /images/bitcoin.png
 
@@ -525,7 +522,7 @@ pjax: false
 
 # FancyBox is a tool that offers a nice and elegant way to add zooming functionality for images.
 # For more information: https://fancyapps.com/fancybox
-fancybox: false
+fancybox: true
 
 # A JavaScript library for zooming images like Medium.
 # Do not enable both `fancybox` and `mediumzoom`.
@@ -590,8 +587,8 @@ comments:
 
 # Disqus
 disqus:
-  enable: false
-  shortname:
+  enable: true
+  shortname: zou-ba-pi-shi-yan-shi
   count: true
   #post_meta_order: 0
 
@@ -628,7 +625,7 @@ valine:
   avatar: mm # Gravatar style
   guest_info: nick,mail,link # Custom comment header
   pageSize: 10 # Pagination size
-  language: zh-cn # Language, available values: en, zh-cn
+  language: # Language, available values: en, zh-cn
   visitor: false # Article reading statistic
   comment_count: true # If false, comment count will only be displayed in post page, not in home page
   recordIP: false # Whether to record the commenter IP
@@ -652,7 +649,7 @@ gitalk:
   # Gitalk's display language depends on user's browser or system environment
   # If you want everyone visiting your site to see a uniform language, you can set a force language value
   # Available values: en | es-ES | fr | ru | zh-CN | zh-TW
-  language: zh-CN
+  language:
 
 
 # ---------------------------------------------------------------
@@ -679,7 +676,7 @@ add_this_id:
 
 # Google Analytics
 google_analytics:
-  tracking_id: UA-146154653-1
+  tracking_id: # <app_id>
   # By default, NexT will load an external gtag.js script on your site.
   # If you only need the pageview feature, set the following option to true to get a better performance.
   only_pageview: false
