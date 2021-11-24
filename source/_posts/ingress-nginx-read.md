@@ -13,6 +13,8 @@ tags:
 # 简介
 nginx-ingress-controller 是最常用的 ingress-controller 之一，也是当前公司生产在使用的ingress。这边会分析主流程。整个ingress-controller是怎么工作的。并不会详细的去解释所有的代码。找到关键节点即可。<br />
 
+<!-- more -->
+
 <a name="ZJflU"></a>
 # 整体流程
 ![nginx-ingress流程.png](https://cdn.jsdelivr.net/gh/phantooom/image-box/ingress/nginx-ingress-read/01.png)<br />
