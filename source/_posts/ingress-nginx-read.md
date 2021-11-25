@@ -431,7 +431,7 @@ func configureBackends(rawBackends []*ingress.Backend) error {
 <a name="tfluE"></a>
 ## lua部分
 <a name="oyzUi"></a>
-#### 测试用例
+### 测试用例
 [https://github.com/phantooom/k8s-valid-demo/tree/main/nginx-ingress-canary](https://github.com/phantooom/k8s-valid-demo/tree/main/nginx-ingress-canary)
 ```
 apiVersion: v1
@@ -804,7 +804,6 @@ local function get_balancer()
 end
 ```
 
-
-<a name="L4LmY"></a>
 # 总结
+
 整体来说大体的逻辑还是标准的controller编写流程，但是具体到写的感觉写的并不是很好，不少没有用到的老代码，逻辑层级过多。有问题不太好排查。只能记住关键的流程点位，有问题结合具体版本进行分析把。
