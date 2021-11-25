@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.4.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"zou.cool","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":true,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="原文Ambry: LinkedIn’s Scalable Geo-Distributed Object Store 发表于 SIGMOD 16 项目目前已经开源托管在github 摘要全世界社交网络之下的基础设施，需要为数十亿的大小可变的媒体对象提供不间断的服务，例如照片，视频和音频切片。这些对象必定被存储在一个低延时高吞吐的系统中。这个系统需要支持跨地区、可扩展，并提供负载均衡能力。当存储大文件">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ambry LinkedIn 对象存储 论文翻译">
+<meta property="og:url" content="https://zou.cool/2018/12/13/ambry/index.html">
+<meta property="og:site_name" content="邹扒皮实验室">
+<meta property="og:description" content="原文Ambry: LinkedIn’s Scalable Geo-Distributed Object Store 发表于 SIGMOD 16 项目目前已经开源托管在github 摘要全世界社交网络之下的基础设施，需要为数十亿的大小可变的媒体对象提供不间断的服务，例如照片，视频和音频切片。这些对象必定被存储在一个低延时高吞吐的系统中。这个系统需要支持跨地区、可扩展，并提供负载均衡能力。当存储大文件">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/01.jpg">
+<meta property="og:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/02.jpg">
+<meta property="og:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/03.jpg">
+<meta property="og:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/04.jpg">
+<meta property="og:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/05.jpg">
+<meta property="og:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/06.jpg">
+<meta property="og:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/07.jpg">
+<meta property="og:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/08.jpg">
+<meta property="og:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/09.jpg">
+<meta property="og:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/10.jpg">
+<meta property="og:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/11.jpg">
+<meta property="og:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/12.jpg">
+<meta property="og:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/13.jpg">
+<meta property="og:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/14.jpg">
+<meta property="og:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/15.jpg">
+<meta property="og:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/16.jpg">
+<meta property="og:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/17.jpg">
+<meta property="og:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/18.jpg">
+<meta property="og:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/19.jpg">
+<meta property="og:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/20.jpg">
+<meta property="og:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/21.jpg">
+<meta property="og:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/22.jpg">
+<meta property="og:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/24.jpg">
+<meta property="og:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/23.jpg">
+<meta property="article:published_time" content="2018-12-12T16:00:00.000Z">
+<meta property="article:modified_time" content="2021-11-25T02:08:55.337Z">
+<meta property="article:author" content="phantooom">
+<meta property="article:tag" content="对象存储">
+<meta property="article:tag" content="分布式系统">
+<meta property="article:tag" content="存储">
+<meta property="article:tag" content="SIGMOD">
+<meta property="article:tag" content="ambry">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/01.jpg">
+
+<link rel="canonical" href="https://zou.cool/2018/12/13/ambry/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>ambry LinkedIn 对象存储 论文翻译 | 邹扒皮实验室</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">邹扒皮实验室</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">胆小怕事,愤而删库</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://zou.cool/2018/12/13/ambry/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/head.jpeg">
+      <meta itemprop="name" content="phantooom">
+      <meta itemprop="description" content="专业系统研(yun)究(wei)者">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="邹扒皮实验室">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          ambry LinkedIn 对象存储 论文翻译
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2018-12-13 00:00:00" itemprop="dateCreated datePublished" datetime="2018-12-13T00:00:00+08:00">2018-12-13</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2021-11-25 10:08:55" itemprop="dateModified" datetime="2021-11-25T10:08:55+08:00">2021-11-25</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%88%86%E5%B8%83%E5%BC%8F%E7%B3%BB%E7%BB%9F/" itemprop="url" rel="index"><span itemprop="name">分布式系统</span></a>
+                </span>
+                  ，
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%88%86%E5%B8%83%E5%BC%8F%E7%B3%BB%E7%BB%9F/%E5%88%86%E5%B8%83%E5%BC%8F%E5%AD%98%E5%82%A8/" itemprop="url" rel="index"><span itemprop="name">分布式存储</span></a>
+                </span>
+            </span>
+
+          
+  
+  <span class="post-meta-item">
+    
+      <span class="post-meta-item-icon">
+        <i class="far fa-comment"></i>
+      </span>
+      <span class="post-meta-item-text">Disqus：</span>
+    
+    <a title="disqus" href="/2018/12/13/ambry/#disqus_thread" itemprop="discussionUrl">
+      <span class="post-comments-count disqus-comment-count" data-disqus-identifier="2018/12/13/ambry/" itemprop="commentCount"></span>
+    </a>
+  </span>
+  
+  <br>
+            <span class="post-meta-item" title="本文字数">
+              <span class="post-meta-item-icon">
+                <i class="far fa-file-word"></i>
+              </span>
+                <span class="post-meta-item-text">本文字数：</span>
+              <span>20k</span>
+            </span>
+            <span class="post-meta-item" title="阅读时长">
+              <span class="post-meta-item-icon">
+                <i class="far fa-clock"></i>
+              </span>
+                <span class="post-meta-item-text">阅读时长 &asymp;</span>
+              <span>1:22</span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>原文<a target="_blank" rel="noopener" href="http://dprg.cs.uiuc.edu/docs/SIGMOD2016-a/ambry.pdf">Ambry: LinkedIn’s Scalable Geo-Distributed Object Store</a> 发表于 SIGMOD 16 项目目前已经开源托管在<a target="_blank" rel="noopener" href="https://github.com/linkedin/ambry">github</a></p>
+<h1 id="摘要"><a href="#摘要" class="headerlink" title="摘要"></a>摘要</h1><p>全世界社交网络之下的基础设施，需要为数十亿的大小可变的媒体对象提供不间断的服务，例如照片，视频和音频切片。这些对象必定被存储在一个低延时高吞吐的系统中。这个系统需要支持跨地区、可扩展，并提供负载均衡能力。当存储大文件的时候，现有的文件系统和对象存储面临着一些挑战。我们推出 Ambry，一个针对大规模不可变对象（称之为blob）的生产级系统。Ambry 设计为一个分布式的系统，并且使用了如下技术：逻辑 blob 组，异步复制，再均衡机制(译注:数据再均衡)，zero-cost 失败检测机制和系统缓存。Ambry 已经在 LinkedIn 生产环境中运行了 2 年，以高达 1万次/s 请求的质量，为超过 4 亿用户提供了服务。我们的实验显示，Ambry 提供了一个高效(使用了 88% 的带宽)，低延时(1MB 文件延时小于50ms)，负载均衡(相对于未进行负载均衡提高了 8-10 倍性能)的系统。</p>
+<span id="more"></span>
+<h1 id="关键词"><a href="#关键词" class="headerlink" title="关键词"></a>关键词</h1><p>对象存储，跨地区分布，可扩展，负载均衡</p>
+<h1 id="1-介绍"><a href="#1-介绍" class="headerlink" title="1. 介绍"></a>1. 介绍</h1><p>在过去的十年中，社交网络已经变成了全世界最受欢迎的社交方式，数亿的用户不间断的上传和阅读数十亿不同类型，从照片和视频到文档，的媒体对象。这些我们称为 blob 的大尺寸媒体对象，上传一次，被全世界各地频繁的访问，从不改变、很少删除。LinkedIn 作为一个全球性的大规模的社交网络公司，急需一个可伸缩、高效存储和频繁召回 blob 的跨地区分布式系统。急需一个可伸缩、高效的跨地区分布系统来存储和检索这些 基本只读(read-heavy) 的 blob。</p>
+<p>处理blob对象会面临许多独一无二的挑战。第一，由于媒体文件的多样性，blob 的大小变化非常剧烈，从数十 KB(例如头像图片)到几 GB(例如视频)。系统需要同时支持高效地存储超大文件和海量的小文件。第二，需要存储和服务的 blob 在不断增长。到目前为止，LinkedIn 每天为超过 80 亿的 put/get (总数据量超过 120TB) 操作提供服务。过去的 12 个月中，从 5000 请求/s 到 9500 请求/s，请求的频率增长几乎翻倍。请求频率的迅速增长，更加加剧了对可线性扩展系统(并且需要低的开销)的需求。第三，负载变化和当集群扩容时可能造成负载不均，造成系统延时和吞吐下降。这个导致了负载均衡的需求。最后，用户希望上传的过程很快，能够持久化，并且高可用。当用户上传了一个blob，即使是当一部分内部的基础设施失效的时候，ta 所有的朋友能够从全世界任何地方，以一个很低的延时看到 ta 上传的blob。为了提供这些功能，数据必须能够可靠的复制到全球的多个数据中心，同时为每个请求提供低延时的服务。</p>
+<p>LinkedIn 曾经有一套自研的解决方案，称为 Media Server，由 NAS(用于存储文件)，Oracle数据库(用于存储 metadata) 和运行了 Solaris 系统的机器构成。Media Server 有着许多缺点。因为许多小文件的存在，造成了海量的元数据操作，该系统面临着 CPU 和 IO 的限制，而且还不能水平扩展、非常昂贵。考虑到 LinkedIn 扩张的非常迅速，并且未来的网页将会以媒体文件为主，我们需要找到一个代替方案。</p>
+<p>已经有一些系统被设计用来处理大量的数据，但是没有一个能够完全符合 LinkedIn 所需要的规模和需求。已经有对分布式系统 [10, 16, 22, 24, 28] 的广泛研究。比如在 [3, 11] 中指出，当存储 blob 时，这些系统有着一些限制。例如，层级目录和丰富的元数据，对于 blob 存储是多余的，增加了许多不必要的开销。</p>
+<p>也有许多 kv 存储 [2, 5, 8, 14] 被设计用来存储大量的对象。尽管这些系统能够处理许多小的对象，但他们没有针对大对象进行优化(数十 MB 到数 GB )。此外，这些系统为了提供一致性保障，增加了额外的开销。然而这种保障对于不可变数据来说一般是多余的。所需的开销举例来说有：使用向量时钟，冲突解决机制，日志和中间协调者。</p>
+<p>一些系统已经被专门设计用来存储大量不可变对象，包括 facebook 的 haystack[3]，以及继任者 f4[18] 和 Twitter 的 Blob Store[27]。然而这些系统没有解决负载不均的问题，这个问题在集群扩容的时候尤其严重。<br>在这篇文章中， 我们将介绍 Ambry，一个被设计用来处理海量 blob 的生产级系统，blob 具有这些特性：尺寸不定、可大可小，一次写多次读(读的流量大于 95%)。Ambry 的设计主要考虑到如下四个目标：</p>
+<p><strong>1) 低延时、高吞吐：</strong> 系统每秒都需要及时处理大量的请求，并且运行在廉价的通用硬件上(例如机械盘)。为了达到这个目的，Ambry 使用了许多技术：利用系统缓存，当数据从硬盘发送到网络时使用 zero copy，分块(chunk)数据可以使用多个节点并行存储和召回，读写 replica 数量的策略可配置，zero-cost 失败探测机制。(详见 2.3, 4.2, 4.3 章节)</p>
+<p><strong>2)跨地区操作：</strong>  为了实现即使出现故障也可用和持久化，Blob必须复制到地理上分布不同的其他数据中心。为了在跨数据中心的环境中，实现低延时、高吞吐，Ambry 设计为分布式(decentralized)的多主系统，数据可以由任何一个 replica 读或写。此外它还使用了异步写：异步写入数据到最近的数据中心，异步复制数据到其他数据中心。同时为了高可用，使用 proxy 机制：当数据还没有复制到当前的数据中心时，会将请求转发到其他的数据中心。（详见 2.3, 4.2 章节）</p>
+<p><strong>3)可扩展性：</strong> 随着日益增长的数据量，系统必须拥有横向扩展能力，同时开销(译注:系统扩展开销)要低。为了实现这个目标，Ambry主要做了三个设计方面的权衡，第一，Ambry 将 blob 的逻辑存储与物理存储分离，允许更改物理位置时对逻辑位置透明。第二，Ambry 设计为完全分布式系统，没有 manager/master。第三，为了索引 blob 的可扩展性和效率，Ambry 使用了带有布隆过滤的分段索引，索引维护在硬盘中，最新的索引缓存在内存中。（详见 4.3 章节）</p>
+<p><strong>4)负载均衡：</strong> 尽管数据在增长，但是系统仍然需要保持平衡。在静态集群中 Ambry 通过将大 blob 分块并随机选择存储的方式保证数据平衡。再均衡(re-balancing)机制则保证当集群扩容后会恢复到均衡状态。（详见 3 章节）<br>Ambry 已经在生产环境中成功的运行 24 个月，跨 4 个数据中心，服务超过 4 亿用户。我们的实验结果显示，Ambry 已经达到高吞吐（接近网络带宽的 88%）和低延时(50ms 内处理完成 1MB 的 blob)的目标，高效运行在多个跨地区的数据中心，并在尽可能少移动数据的前提下，解决数据不均的问题，将效率提高了约 8-10 倍</p>
+<h1 id="2-系统概览"><a href="#2-系统概览" class="headerlink" title="2. 系统概览"></a>2. 系统概览</h1><p>在这个章节我们讨论了Ambry的总体设计，包含了系统的高层架构(2.1)，partition的概念(2.2)和支持的操作(2.3)</p>
+<p><img src="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/01.jpg" alt="image"></p>
+<h2 id="2-1-架构"><a href="#2-1-架构" class="headerlink" title="2.1 架构"></a>2.1 架构</h2><p>Ambry被设计为一个全分布式的系统，可以跨地区数据中心。整体的架构展示在了图1中。系统主要有三部分组成：Frontends: 用来接收和路由请求。Datanodes:存储真实数据。 Cluster Managers：维护集群状态信息。每个数据中心拥有并且分布式的运行自己的一套组件。Frontends 与 Datanodes 之间是完全独立的。Cluster Managers之间是同步的，同步通过zk实现。我们在下边提供了各组件的概览(详细的介绍在4章)。</p>
+<p><strong>Cluster Manager</strong>: Ambry 组织了数据的虚拟单元称为 partition（2.2 章）一个partition是由若干blob组成的逻辑分组。使用大的replicated文件实现。起初，partition是可读可写的。例如 blob可以读同时也可以添加。当一个逻辑的partition接近他的容量时，将会转变为只读状态，Cluster Manager持续跟踪状态(可读可写/只读) 同时 跟踪每个partition replica的位置。还跟踪了器群的物理布局（节点和磁盘位置）。</p>
+<p><strong>Frontend</strong>: 在多租户环境中Frontends 负责接收和路由请求。系统处理三种类型的请求：put get delete。 热数据会由Ambry之上的CDN处理。Frontends直接从客户端接收请求，或者通过CDN接收。Frontends转发相应的请求到相应的Datanode 并且返回相应的数据给客户端，或者返回给CDN。</p>
+<p><strong>Datanode</strong>: Datanode存储和召回真实的数据。每个Datanode管理一组磁盘。为了获得更好的性能，Datanode维护了许多额外的数据结构，包括：blob索引，journals 和 布隆过滤器（4.3章）。</p>
+<h2 id="2-2-Partition"><a href="#2-2-Partition" class="headerlink" title="2.2 Partition"></a>2.2 Partition</h2><p>为了避免直接将blob 映射到物理机，例如 Chord [26] and CRUSH [29],Ambry 随机的将blob分组到一个虚拟的单元称之为 Partition。partition的物理安置是由一个独立的程序处理。这将逻辑位置和物理位置进行了解耦，对数据迁移透明（对数据再均衡很必须要）同时可以避免在集群扩展时立刻再哈希(rehashing)。</p>
+<p>一个partition的实现是使用一个预分配的大的append-only的日志文件实现的。目前，在系统的生命周期中，partition是固定大小的。partition的大小需要足够大，来抵消partition的额外开销。例如，会为每个partition维护额外的数据结构，像索引, journal，布隆过滤器(4.3章),当partition足够大时这些开销是微不足道的。另一方面，故障恢复和重建的时候应该很快。我们在我们的集群中使用100GB 的partition。因为重建可以并行的从多个replica中进行，我们发现即使是100GB大小的partition可以在几分钟内重建完毕。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/02.jpg" alt="image"></p>
+<p>Blob是顺序的写入到partition中用作put和delete 的 entry(图2)。所有的entry都包含一个header(存储entry中field的偏移量)和blob id。 blob id是唯一标识，由Frontend 在put/delete 生成。在get/delete 操作时候用来定位blob。这个id包含partition id，代表blob的位置(8Bytes),后面接着是32Bytes的UUID，代表blob的id。id冲突可能存在，但是概率非常低(&lt; 2^230)。当冲突发生时两个put操作必须生成同样的id并且写到同一个partition。冲突会在Datanodes中解决，将后put的失败即可。</p>
+<p>put entries 也包含了预定义的属性，包括blob size， ttl，创建时间，content type。同时也支持用户定义的属性。</p>
+<p>为了提供该可用性和故障容错，每个partition 被复制到多个Datanodes。每个replica使用贪心算法安置在磁盘上。这个算法选择一个，未使用空间最大的磁盘，同时要遵守如下限制条件：1）每个Datanode(相同partition)不能安置超过一个replica。2）replica需要存在于多个数据中心，目前replica数量可以由系统管理员配置。未来一部分的工作是，我们打算支持在热的partition中自动的增加replica数。同时对于冷的数据我们使用纠删码来进一步减少副本数量。</p>
+<p>起初，partition是可读可写，能处理所有的操作（put get delete）。当partition 到达他的极限大小时(容量极限)，会变为只读的，此后只处理 get 和 delete 请求。</p>
+<p>容量极限应该略微的比最大容量小(80%~90%),主要由于两个原因，第一，在变为只读之后，replica可能没有完全的同步，需要空闲的空间去追赶落后的部分（因为是异步的写)。第二删除请求仍然需要添加delete entry。</p>
+<p>delete 与 put 操作类似，但是delete作用于已经存在blob上，默认的情况下，删除的结果是为一个blob 添加一个delete的entry(带有delete 标记，软删除)。被删除的blob会周期性的清理，使用一个内部的compaction机制。在compaction之后，只读的partition如果存在足够的空闲空间，则会转变为可读可写的。文章的剩余部分我们主要关注put，因为它与delete类似。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/03.jpg" alt="image"></p>
+<h2 id="2-3-操作"><a href="#2-3-操作" class="headerlink" title="2.3 操作"></a>2.3 操作</h2><p>Ambry拥有轻量级的API，仅支持三个操作: put ,get ,delete。API请求的处理过程在图三中进行了展示。当收到请求时，Frontend有选择的对请求进行一些安全检查，然后使用Router库(包含了最核心的处理逻辑)，Router库随机选择一个partition，负责与Datanode进行通信，同时处理请求。在put操作中，partition是随机选择的(主要目的是为了数据的均衡)，并且在get/delete 操作中,partition是从blob id中获取的。</p>
+<p>操作被设计为可以被多个master处理，操作可以由任何一个replica处理。具体要与多少replica进行通信是由用户策略定义的。这些策略类似于Cassandra中的一致性级别，用来控制一个操作要涉及多少个(1,k, 大多数，所有)replica参与。对于put(或者delete)请求会转发到所有的replica，并且策略定义了返回成功(为了权衡持久性和延时)需要确认(写入)的数量。对于get，策略决定了需要随机选择多少个replica进行通讯（为了权衡负载和延时)，实践中我们发现对于所有的操作 k=2时的策略 我们能够获得我们所期望的平衡点(负载，延时，持久性的平衡)。更严格的策略(包含所有replica)将会提供一个更强的一致性保障。</p>
+<p>此外，在跨数据中心的场景下，执行写操作时候，同步写所有的replica，将会影响延时和吞吐。为了能够缓解这个问题，Ambry使用了异步写操作，put操作只同步写本地数据中心，例如一个数据中心的Frontend接收到了一个本地的请求，处理后这个请求被认为已经成功了。稍后，blob会使用一个轻量级的复制算法，被复制到其他的数据中心。(5 章)</p>
+<p>为了在一个尚未blob尚未被复制到的数据中(在数据中心A写在数据中心B读)，提供read-after-write(写完后立刻可读)一致性。Ambry使用了代理请求的方式，如果Frontend不能从本地数据中召回blob，他会将请求代理到另外一个数据中心，将那边的结果返回。尽管代理请求消耗非常大，但是在实践当中我们发现代理请求发生的频率很低(小于0.001%)。</p>
+<h1 id="3-负载均衡"><a href="#3-负载均衡" class="headerlink" title="3 负载均衡"></a>3 负载均衡</h1><p>负载倾斜，大量的大blob，和集群扩容，造成了负载不均，并且对系统的延时和吞吐造成了影响。Ambry在动态和静态集群中都实现了负载均衡功能(根据磁盘使用率和请求速率)。</p>
+<p><strong>Static Cluster</strong>：将大的blob分割为多个小的块（4.2.1章）同样通过Router库执行put操作，随机选择一个parition，来实现partition 大小的负载均衡。此外使用大小相同的partition，依赖CDN处理非常热门的内容，可以显著降低产生热点partition可能。使用这些技术后，在生产环境中，负载不均的请求和大小不均的partition占所有Datanodes 5%。</p>
+<p><strong>Dynamic Cluster</strong>：在实践中，可读可写partition 接收所有的写流量，同时承担了主要的读流量。因为partition是以一种半平衡(semibalanced)的方式增长.可读可写的partition数量成为了负载不均的主要因素。在集群扩展之后，新的Datanode 包含了绝大部分可读可写的partition，然而老的Datanode包含了绝大部分只读的partition。这种可读可写partition倾斜的分布造成了系统的负载不均。在我们起初的版本中，新的Datanode得请求比例比老的高100倍，比平均值高10倍。</p>
+<p>为了解决这个问题，Ambry引入了一个再均衡机制，移动最少的数据使集群变为半平衡（semi-balanced）状态（针对磁盘使用率和请求而言）。再均衡实现了减少请求比例和硬盘使用率，分别达到了6-10倍和9-10倍。</p>
+<p>Ambry 定义了 ideal 状态 (已经负载均衡的状态)，ideal状态包含三个(idealRW=totalNumRW / numDisks, idealRO=totalNumRO / numDisks, idealUsed=totalUsed / numDisks）可以由 只读/可读可写的总量 /硬盘使用的总空间 除以集群中硬盘的总数得到。如果一个磁盘有更多的(或更少的)只读/可读可写的partition/磁盘使用率，会被认定为高于(或低于)ideal。</p>
+<p>再均衡算法尝试到达ideal状态，通过使用将高于ideal状态磁盘的partition移动到低于 ideal状态的磁盘来实现。主要分为两个阶段如下代码所示：<br><img src="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/04.jpg" alt="image"></p>
+<p>阶段1-移动到partition池：在这个阶段，Ambry将高于ideal状态磁盘的partition移动到一个池子里，这个池子称为 partition pool (6-13行)，这个阶段的结尾，不会有磁盘高于ideal状态，除非移动了partition会造成磁盘低于ideal状态。</p>
+<p>Ambry从可读可写的partition开始(最主要的影响因素)，基于idealRW极限，移动额外的partition。同样的过程也在只读的partition中重复。但是通过考察idealRO 和 idealUsed指标，然后进行移动。选择移动那个partition的策略是基于最小数据移动确定的。对于可读可写的partition，就是选择一个容量使用最小的partition。对于只读的partition，就是进行一个随机的选择，因为所有的只读的partition都是写满了的。</p>
+<p>阶段2- 安置partition到磁盘：在这个阶段,Ambry将partition从partition池移动到低于ideal(14-16行)的磁盘，先移动可读可写的partition，然后移动只读的partition。partition安置采用了round-robin的方式(17-22)。Ambry找出所有的磁盘都在ideal之下，将他们进行打乱，然后使用round-robin的方式将partition安置到他们上面，这个过程一直进行直到partition 池为空。</p>
+<p>在找到新的安置处后，replica 将会无缝的删除1)创建印个新的replica 在目的地。2）通过同步协议，将从旧的replica同步到新的replica，这时所有的replica都能提供写服务。3）当同步完成时删除旧的replica。</p>
+<h1 id="4-组件详解"><a href="#4-组件详解" class="headerlink" title="4. 组件详解"></a>4. 组件详解</h1><p>这章我们将更详细的讨论ambry的主要组件。我们将详细的描述Cluster Manager(4.1章)存储的状态，此外还讨论了Frontends的职责包括分块和失败检测（4.2章），还有Datanodes（4.3章）维护的数据结构。</p>
+<h2 id="4-1-Cluster-Manager"><a href="#4-1-Cluster-Manager" class="headerlink" title="4.1 Cluster Manager"></a>4.1 Cluster Manager</h2><p>Cluster Manager 负责维护集群的状态，每个数据中心有一个本地的Cluster Manager实例，使用zk与其他实例保持同步。Cluster Manager存储的，由硬件和逻辑布局组成的状态非常小(总和小于几MB)。<br><img src="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/05.jpg" alt="image"></p>
+<h3 id="4-1-1-硬件布局"><a href="#4-1-1-硬件布局" class="headerlink" title="4.1.1 硬件布局"></a>4.1.1 硬件布局</h3><p>硬件布局包含了集群的物理结构信息。例如数据中心，Datanodes, 磁盘的分布。同样也为每个磁盘维护了原始容量和状态，例如健康(UP) 或者故障(DOWN)。表1是一个硬件布局的例子，如表所示，Ambry工作在一个异构的环境中，不同的硬件不同的配置不同的数据中心。<br><img src="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/06.jpg" alt="image"></p>
+<h3 id="4-1-2逻辑布局"><a href="#4-1-2逻辑布局" class="headerlink" title="4.1.2逻辑布局"></a>4.1.2逻辑布局</h3><p>逻辑布局维护了partition的replica的物理位置。也维护了每个partition的状态(可读可写/只读)。为了检测partition的状态，manager周期行了与Datanode进行通信，请求他们partition的状态。逻辑布局用于选择一个partition安置新创建的blob(put 操作)，也用于定位一个给定的replica的Datanode(所有操作)。一个示例布局如表2所示，partition的replica可以被安置在一个数据中心的多个Datanode，也可以在多个数据中心。此外一块硬盘(例如 DC 1：Datanode 1: disk 1) 可以包括不同partition的replica，有一些只读，有一些可读可写。添加一个partition是通过更新Cluster Manager实例存储的逻辑布局实现的。</p>
+<h2 id="4-2-Frontend-层"><a href="#4-2-Frontend-层" class="headerlink" title="4.2 Frontend 层"></a>4.2 Frontend 层</h2><p>Frontend 是外部请求的实体，每个数据中心拥有一组自己的Frontend。Frontend是完全分布式的没有master或者coordination，是无状态的，完全一样的处理任务,所有的状态存储在Cluster Manager中（周期性的拉取）。这种设计对Frontend来说能够，提高扩展能力(新的Frontend加入不会有太多的性能代价)，和故障容忍能力(请求可以被转发到任意一个Frontend)，和故障恢复能力（故障的Frontend可以很快的被取代）。Frontend主要有三个职责：</p>
+<ol>
+<li><p>请求处理：这个包含了接收请求和使用Router库(4.2.1章)将他们路由到相应的Datanode.并且将返回response。</p>
+</li>
+<li><p>安全检查：可以选择性的执行检查，例如病毒扫描和请求认证。</p>
+</li>
+<li><p>捕获操作：由于Ambry缺乏离线分析的功能，推送事件到变更捕获系统，例如发现系统的请求模式，我们使用kafka作为我们的变更捕获系统，主要由于他提供了高持久性，高吞吐，和低开销的能力。</p>
+</li>
+</ol>
+<h3 id="4-2-1-Router-库"><a href="#4-2-1-Router-库" class="headerlink" title="4.2.1 Router 库"></a>4.2.1 Router 库</h3><p>Router库有处理请求和与Datanode通信的核心逻辑。Frontend简单的嵌入了并使用了这个库。客户端可以植入这个库直接处理请求 绕开(bypass)Frontend。这个库包括了四个主要部分.1)策略路由。2）大blob分块。3）失败检测。4)代理请求。</p>
+<p><strong>策略路由</strong>：当接收到一个请求，库会决定选择哪个partition(put操作时候随机选择，get/delete 操作从blob id中提取partition)。然后基于2.3章中讨论的策略({one, k, majority, all}，与相应的replica进行通讯，直到请求成功或失败。</p>
+<p><strong>分块</strong>：非常大的blob(例如 视频) 造成了负载不均，小块的blob，造成了固有的高延时。为了减缓这些问题，Ambry将大的blob分为大小相等的单元称之为分块(chunk)，大的分块不能完全解决大blob的挑战，小的分块将会带来过多的额外开销。基于我们目前的大blob分布我们发现最有效的分块大小时4-8MB。<br><img src="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/07.jpg" alt="image"></p>
+<p>在put操作期间，一个blob b 被分为k 块{c1,c2,c3….ck},每个分块被当做一个独立的blob，每个分块使用相同的步骤，作为一个普通的blob被执行put操作(2.3章)，大多数会被分散到不同的partition。也会被分配一个无二的分块id 与 blob id格式相同。为了为了能够召回b, Ambry为blob b 创建了一个元数据(metadata)blob b-metadata，b-metadata存储了分块的数量，和顺序排列的分块id。如图4所示。这个元数据blob最后作为一个普通的blob，put到了Ambry中，然后返回b-metadata 的blob id 作为b的 blob id。如果put操作在写完所有分块之前失败，那么将会将写入的分块标记为删除，然后重做操作。</p>
+<p>在get时，元数据blob会被召回，然后从中提取到分块id，Ambry使用大小为s的滑动缓冲区召回blob，然后Ambry并行(因为大部分的分块独立的存储在不同的Datanode中)的查找blob 前s个分块，当滑动缓冲区的第一个分块已经被召回了，Ambry将缓冲区滑动到下一个分块，如此往复。整个blob开始返回开始于第一个分块被召回。</p>
+<p>尽管，在这种机制下需要额外的put/get，但总的来说我们改善了延时，因为多个分块写和召回都是并行的。<br><img src="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/08.jpg" alt="image"></p>
+<p><strong>Zero-cost 故障检测</strong>: 在大型系统中故障频繁的发生。从无响应，连接超时，到磁盘io问题。因为Ambry需要一个故障检测机制，像心跳或者ping那样利用请求消息。在实践中我们发现我们的检测机制是简单，有效，使用很少的带宽。这个机制如图5所示，在这种方法中，Ambry在最近的检查周期，不停的追踪请求连续失败的特定Datanode(或者磁盘) 。如果失败的数量达到了最大失败的上限(在我们的例子中是2)，Datanode被标记为 临时下线一段时间，Datanode在这种状态下排队的所有请求最终都会超时，并且需要用户重试。在一段时间之后，Datanode会转变为临时可用状态，当Datanode在临时可用的状态，可以接收请求，当收到的请求仍然失败会转为临时不可用状态，如此往复，直到接收请求不失败，Datanode会被标记为可用，再次恢复到正常状态。</p>
+<p><strong>代理请求</strong>：如2.3章描述的，Ambry使用代理请求实现高可用，和在远程数据中心时 read-after-write一致性。当一个blob没有被复制到本地的数据中心时，那个blob的请求将会被转发到其他的数据中心，并且处理(代理请求)。然而，数据中心的partition可能由于，尚未复制数据造成不可用，直到partition追回数据 并且replica恢复时。<br>代理请求是由Router库处理，对于用户请求透明，实践中我们发现代理请求发生的比例小于0.001%，因此对用户体验的影响很小。</p>
+<h2 id="4-3-Datanode层"><a href="#4-3-Datanode层" class="headerlink" title="4.3 Datanode层"></a>4.3 Datanode层</h2><p>Datanode 负责维护真实的数据，每个Datanode管理一些磁盘，并且响应安置partition的replica到磁盘的请求。put请求通过写到partition文件的末尾的方式处理。Get可能需要花费更多的时间，特别是blob在partition中的位置未知时，为了最小化读写的延时，Datanode使用了一些技术：</p>
+<ul>
+<li><strong>索引blob</strong>： Ambry为每个partition的replica存储了一个blob偏移的索引，用来减少线性查找blob。(4.3.1章)</li>
+<li><strong>利用系统缓存</strong>：Ambry利用系统缓存，在内存中处理大部分请求，同时限制其他组件的内存使用率(4.3.2)章</li>
+<li><strong>批量写,单次seek</strong>：对于某个partition Ambry批量的写，并且周期性的将写操作flush到磁盘，因此，对于一个批量的连续写最多引发一次磁盘seek。flush的周期是可以配置的，取决于可用性和一致性的权衡。尽管批量可以引入开销，如，flush，dirty buffer和tunning，但是收益远大于这些开销。</li>
+<li><strong>保持所有的fd打开</strong>：因为partition非常大(我们设置为100GB)，安置在Datanode上的partition的replica数量非常少(数百)，因此Ambry所有时间保持fd打开。</li>
+<li><strong>zero copy get</strong>：当读取一个blob是，Ambry利用 zero copy 机制，例如内核直接从磁盘拷贝数据到网络缓冲区不经过程序，这个是可行的，因为Datanode在get操作中不会对数据进行任何操作。</li>
+</ul>
+<p><img src="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/09.jpg" alt="image"></p>
+<h3 id="4-3-1-索引"><a href="#4-3-1-索引" class="headerlink" title="4.3.1 索引"></a>4.3.1 索引</h3><p>为了以一个低的延时找到blob在partition replica中为位置，Datanode为每一个replica维护了一个轻量级的内存索引，如图6所示。索引根据blob id进行排序。构建了一个blob id 到 blob实体起始偏移量的映射。当blob被 put(如blob 60)或者delete(blob 20) 时这个索引是实时更新的。</p>
+<p>与SStables类似，Ambry限制了索引的大小，将索引分段，将老的分段存放在磁盘中，同时为每个磁盘上的分段维护了一个布隆过滤器。（4.3.2章）</p>
+<p>索引也存储了标识，如果一个blob已经被删除了，或者指定了一个ttl，在get操作期间如果发现blob 已经过期或者被删除了，在读取真实数据之前会返回一个错误。</p>
+<p>注意索引文件不包含任何额外影响正确性的信息，仅为了提高性能，如果一个Datanode故障了，整个索引能够通过partition进行重建。</p>
+<h3 id="4-3-2-利用系统缓存"><a href="#4-3-2-利用系统缓存" class="headerlink" title="4.3.2 利用系统缓存"></a>4.3.2 利用系统缓存</h3><p>最近写入的数据，通常也是热门数据，会被自动的缓存，不需要任何额外的开销(通过操作系统).通过利用这个功能，许多读的操作可以由内存提供服务，能够显著的提高性能。因此Ambry限制了Datanode中其他的数据结构的内存使用。Ambry限制了索引通过分段的方式，仅仅保留最新的分段在内存中(图6所示)。新的实体被添加到内存的索引分段中，当内存中的分段超过最大限制的大小，会被flush到磁盘，变为只读的分段，这个设计也帮助了故障恢复，因为当从故障中恢复时，只需要从partition中重建内存中的索引即可。查找blob的顺序是按照时间反向查找，从最新的分段开始(内存中的分段)。因此删除的实体将会比put的实体先查找到，这个保证了删除的blob不会被召回。</p>
+<p>布隆过滤：为了减少查找磁盘索引分段延时，Ambry为每个分段维护了一个内存的布隆过滤器，包含了对应分段的blob id。使用布隆过滤器Ambry可以快速的找到读取哪个内存索引分段，因此有很大的概率只发生一次磁盘seek，然而由于我们主要的读都会命中内存中的分段，不需要任何seek操作。</p>
+<h1 id="5-复制"><a href="#5-复制" class="headerlink" title="5 复制"></a>5 复制</h1><p>属于同一个partition的replica，可能由任何失败或者异步写的原因造成不同步。为了修复这种不一致的replica，Ambry使用异步复制算法，定期的同步这些replica。这个算法是完全分布式的。在这个过程中，每个replica单独扮演master角色，从其他replica同步数据，是一种all-to-all的方式。同步使用一种两阶段异步复制协议，如下所示，这个协议是采用pull的方式，每个replica独立的从其他replica中请求获取当前replica中缺失的blob。</p>
+<ul>
+<li><p><strong>第一阶段</strong>：这个阶段从上次同步点之后，查找缺少的blob。这个是通过获取上次同步完成时offset之后所有blob id，然后与过滤出本地缺失的blob。</p>
+</li>
+<li><p><strong>第二阶段</strong>：这个阶段replica缺少blob，发送一个请求，包含所有缺失的blob id，然后缺失的blob会被发送并添加到replica。</p>
+</li>
+</ul>
+<p><img src="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/10.jpg" alt="image"><br>为了快速的找出最近写入的blob，复制算法为每个replica维护了一个数据结构，称之为journal。journal是一个内存的缓存，其中维护了最近blob，按照offset进行排序，图7展示了两个replica(r1,r2)的两个journal的例子，两阶段复制过程从r1向r2发起，offset为600。在第一阶段，r1请求offset在600之后的所有最近添加到r2的blob id，r2 使用journal 返回了一个blob id的列表 B={55,40,70,90}，然后r1 过滤出缺少的blob{55,90}.在第二阶段，r1接收到缺少的blob，添加blob到replica的末尾，同时更新journal，索引和lastoffset。<br>为了改善系统的效率和扩展能力，复制算法使用了如下的优化：</p>
+<ul>
+<li>数据中心内部和外部线程池分离，使用不同的同步周期</li>
+<li>两个Datanodes之间相同的partition replica 使用批量请求，同时批量传输blob在数据中心之间。</li>
+<li>落后的replica优先，为了能更快的赶上。</li>
+</ul>
+<h1 id="6-实验结果"><a href="#6-实验结果" class="headerlink" title="6. 实验结果"></a>6. 实验结果</h1><p>我们构建了三个实验环境，小的集群(6.1章)，生产集群(6.2章)和仿真集群(6.3章)。</p>
+<h2 id="6-1-吞吐和延时"><a href="#6-1-吞吐和延时" class="headerlink" title="6.1 吞吐和延时"></a>6.1 吞吐和延时</h2><p>在这个章节我们测量了系统的延时与吞吐。使用了一个微型的benchmark工具,对系统在只读，只写，和可读可写的负载下进行压测(6.1.1章)。</p>
+<h3 id="6-1-1-微型-benchmark"><a href="#6-1-1-微型-benchmark" class="headerlink" title="6.1.1 微型-benchmark"></a>6.1.1 微型-benchmark</h3><p>我们首先测量了吞吐峰值，我们设计了一个微型benchmark工具，工具线性的增加系统负载（通过添加更多client的方式），每个client在上个请求刚返回后就继续发送请求,直到系统达到饱和，不能处理更多请求。</p>
+<p>benchmark有三种模式： 写，读，读写。在写模式下，许多clinent put随机大小的字节数组blob。在读模式下，首先在写周期内进行饱和的写(最快的速率写),然后从写入的blob随机选择进行读。在大多数实验中，我们设置写的周期足够长，可以让大多数的读请求(&gt;80%)都是由硬盘进行处理的，而不是从内存。读写模式与读相似，只是在写周期之后读和写的请求各占50%。<br>因为延时和吞吐与blob大小相关，我们使写如了总大小固定大小的blob在每次运行时，但是会改变单个blob的大小。</p>
+<h3 id="6-1-2-实验设置"><a href="#6-1-2-实验设置" class="headerlink" title="6.1.2 实验设置"></a>6.1.2 实验设置</h3><p>我们部署了单节点Datanode的Ambry。这个Datanode运行在一个24cpu ，64g内存，14 块1T HDD，和一个全双工的1Gb/s的以太网卡的服务器上。4G内存被用作Datanode服务内部使用，剩余的全部内存作为系统缓存。我们在每个磁盘上创建个8个replica。一共122个partition。14个磁盘使用了1Gb/s的网卡看起来有些多余，但是对于磁盘延时的主要影响因素是小文件的seek操作。因为partition中大部分blob是小的(&lt;50kb)，我们需要使用多个磁盘进行并行(更多详情在6.1.4章)。值得注意的是我们将Ambry设计为具有性价比的系统，所以使用了廉价的机械盘。</p>
+<p>client从相同的数据中心的机器上发送请求，这些client充当Frontends，直接向Datanode发送请求，之前讨论的微型benchmark工具被用来产大小不同的blob{25KB,50KB,100KB,250KB,500KB,1MB,5MB},我们没有继续产生超过5MB的blob，因为5MB已经超过单个分块大小了。<br><img src="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/11.jpg" alt="image"></p>
+<h3 id="6-1-3-client数量的影响"><a href="#6-1-3-client数量的影响" class="headerlink" title="6.1.3 client数量的影响"></a>6.1.3 client数量的影响</h3><p>我们运行了微型benchmark生成变化的blob大小，当线性增加client数量时。对于读模式，第一个写的周期我们设置了写6倍于内存的大小的数据。图8a展示了以MB/s表示的系统提供的吞吐。适当添加client吞吐会增长，直到饱和。吞吐饱和发生在网络带宽的75%~85%。唯一的例外就是读取小的blob，主要是因为频繁的seek(6.1.4章讨论)。饱和发生的很快(通常client&lt;=6)因为client在benchmark中会尽可能的发送请求。<br>图8b展示了经过blob大小标准化后的延时(例如平均延时/blob大小)。在抵达饱和点钱延时几乎是一个常数，然后线性增长，线性增长的原因是因为，系统不能处理额外的请求了。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/12.jpg" alt="image"></p>
+<h3 id="6-1-4-blob-大小的影响"><a href="#6-1-4-blob-大小的影响" class="headerlink" title="6.1.4 blob 大小的影响"></a>6.1.4 blob 大小的影响</h3><p>在图9a和9b中我们分析了最大的吞吐(20 clinets)和负载， 在不同blob大小下的情况。对于大的对象(&gt;200KB)，最大吞吐put(MB/s)一直恒定，同时接近带宽的最大负载。类似的吞吐每秒请求的吞吐也成比例的增加。然而对于读和读写来说，小文件的读的吞吐打破线性规律。规律被打破的原因是因为微型benchmark工具是随机的读取blob，导致了频繁的磁盘seek。对于小文件存在seek放大影响。为了进一步分析磁盘，使用Bonnie++(一个io benchmark工具，用来测量磁盘性能)，我们确定磁盘seek是小文件延时的主要原因。例如当读取一个50KB的blob，超过94%的延时是由硬盘seek产生的(6.49ms用于磁盘seek，0.4ms用于读取数据)。</p>
+<p>Datanode读和写工作分别利用了流入，流出链路。但是读写模式下会有个一个更大的吞吐，因为两个链路同时被利用到了。因此我们的全双工模式的网络设施，可以在读写模式下获得接近两倍的吞吐(1.7Gb/s)。对于小文件，读写吞吐大致为只读吞吐的2倍，因为读写各占50%的工作，读成了主要的限制因素。</p>
+<p>图9c展示了延时根据blob大小变化的趋势。这些结果未到达饱和点，只启用了两个client。与吞吐相似延时线性增长，小文件除外。读的延时更高，因为大多数的读都会引发磁盘seek，然而写请求是批量写入的。读写延时位于 读和写延时之间，因为读写是由读和写混合而成的。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/13.jpg" alt="image"></p>
+<h3 id="6-1-5-延时的变化"><a href="#6-1-5-延时的变化" class="headerlink" title="6.1.5 延时的变化"></a>6.1.5 延时的变化</h3><p>对于请求延时来说，尾部和变化都很重要。图10展示了2个client的读，写，读写累积分布图。这个累积分布图中的读和写都非常接近一个垂直线，并且带有一个短的尾部，并且大多数值都接近中位数。读模式下(50KB 大小的blob)，会跳到0.15附近，主要是因为小文件中的一小部分能够直接由Linux cache提供服务，cache会比硬盘快几个数量级(6.1.6章)。读写模式累积分布图是由读和写混合组成，在0.5处发生改变。主要是因为50%读和写的工作模式造成的。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/14.jpg" alt="image"></p>
+<h3 id="6-1-6-Linux-Cache的影响"><a href="#6-1-6-Linux-Cache的影响" class="headerlink" title="6.1.6 Linux Cache的影响"></a>6.1.6 Linux Cache的影响</h3><p>当以50KB大小的blob 和 2个 client的配置下运行微型benchmark工具时，提供两种配置。1）在读之前写6倍于内存大小的数据，所以大多数的请求(83%)是由硬盘提供服务。2)写数据大小等于内存的数据，保证所有数据都在内存当中(读缓存)。表3比较了这两种模式。</p>
+<p>缓存读的性能，超过2100请求/s (104MB/s接近79%的网络带宽)与最大的写带宽相匹配(6.1.3章)，与之相对从磁盘读有540/s请求。我们也可以测量 平均，最大，最小 延时的标准差，表3所示。在所有的case中，最小值相等，然而从缓存读能够提高平均延时和最大延时，分别提升了5.5倍和13倍。这能够说明利用linux cache 是很有效的(4.3.2章)。</p>
+<h3 id="6-2-跨数据中心优化"><a href="#6-2-跨数据中心优化" class="headerlink" title="6.2 跨数据中心优化"></a>6.2 跨数据中心优化</h3><p>我们分析了我们的复制算法在3个分布在全美国的LinkedIn数据中心{DC1,DC2,DC3},本章所有的实验都来自于生产环境。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/15.jpg" alt="image"></p>
+<h3 id="6-2-1-复制落后"><a href="#6-2-1-复制落后" class="headerlink" title="6.2.1 复制落后"></a>6.2.1 复制落后</h3><p>我们定义了一对replica(r1,r2)之间的复制落后，用r2使用的最高的offset与r1的上次同步的offset之前的不同表示。需要主要不是所有的落后的数据都要被复制到r1，因为他也可以从别的replica获取到缺失的blob。</p>
+<p>我们测量了给定Datanode上所有的replica与集群中其他replica之间的落后。我们发现了超过85%的值为0.图11展示了不同数据中心的不为0值的累积分布。对于100GB的partition（所有的数据中）95%的落后小于1KB，数据中心3有更多的落后，因为他距离其他的数据中心相对远。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/16.jpg" alt="image"></p>
+<h3 id="6-2-2复制带宽"><a href="#6-2-2复制带宽" class="headerlink" title="6.2.2复制带宽"></a>6.2.2复制带宽</h3><p>Ambry写数据到其他数据中心依赖后台复制，我们测量了24小时内用于数据中心间复制的网络带宽。如图12所示。带宽总计小于10MB/s，所有的数据中心都类似。并且与请求比率相关，每天的带宽使用模式都类似。这个是非常小，因为相同的replica我们采用了批量复制，也因为主要是读的流量比重大。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/17.jpg" alt="image"></p>
+<p>图13展示了每个Datanode上的平均复制带宽，包含了数据中心内和数据中心之间的复制。数据中心内的带宽很小(200B/s 95%分位)，与之相对的数据中心间的带宽有150KB/s 在95%分位 (相差1000倍)。数据中心之间带宽高的原因主要是因为异步写。然而数据中心之间的带宽仍然很小(仅占1Gb/s 链路的0.2%)。三个数据中心有点小的不同，主要是因为不同的请求和不同的接收。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/18.jpg" alt="image"></p>
+<p>图14展示了一个放大的图片，这个图片只包含数据中心之间的带宽。数据中心间的复制有一个短的尾部，在95%和5%分位可能存在3倍的差异。这个尾部产生的原因是因为Ambry中负载均衡的设计。数据中心内复制也会有更长尾部。也存在一些为零的值(图中忽略掉了)。因此复制可能不消耗带宽(数据中心内)，或者消耗几乎所有的带宽(数据中心间)。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/19.jpg" alt="image"></p>
+<h3 id="6-2-3-复制延时"><a href="#6-2-3-复制延时" class="headerlink" title="6.2.3 复制延时"></a>6.2.3 复制延时</h3><p>我们定义了复制延时，使用一次复制协议花费时间。例如 T接收到缺失的blob -T发起同步时间。图15展示了我们生产环境中数据中心间与数据中心内平均复制延时的累积分布图。</p>
+<p>数据中心间复制延时中位数小于150ms，有一个非常短的尾部。尽管这个延时可能变高，代理请求的比例接近0(&lt;0.001%).这是因为用户通常读取数据从他们最近写数据相同的数据中心。因此复制复制对用户体验的影响非常小。</p>
+<p>出人意料的，数据中心内的复制的延时相当高(比数据中心间高6倍)同时带有一点变化。出现这种模式的原因是人为添加了1秒的延时。为了防止blob冲突检测，如果一个blob被复制比Datanode接收到请求还快，那么当Datanode接收到这个put请求时发现本地已经存在了这个blob会人为这个blob已经存在了，认为id冲突，会将请求失败。人为添加了一个延时是为了防止这个问题发生在数据中心内复制时。这个小的延时并没有影响到可用性或者之久性。因为数据中心内复制只用于修复失效的数据或者慢的Datanode。</p>
+<h2 id="6-3-负载均衡"><a href="#6-3-负载均衡" class="headerlink" title="6.3 负载均衡"></a>6.3 负载均衡</h2><p>因为集群扩容发生的不是很频繁(最多几个月发生一次)。我们实现了一个模拟器用来展示Ambry经过长时间(通常是数年)运行后和大规模集群的行为(数百个Datanode)。我们使用的负载时基于生产环境的。这章所有的结果都是模拟器的。</p>
+<h3 id="6-3-1-模拟器设计"><a href="#6-3-1-模拟器设计" class="headerlink" title="6.3.1 模拟器设计"></a>6.3.1 模拟器设计</h3><p>模拟器的设计与Ambry的架构类似，请求和服务使用相同的路径。然而不存在真实的物理硬盘。为了处理请求只有元数据会被存储(blob id 和 大小)和召回，同时用于反应请求的倾向(磁盘大小增长)。</p>
+<p><strong>Workload</strong>：我们使用合成Workload，这个Workload非常接近LinkedIn真实的流量。这个Workload记录了每种类型请求的比例(read write delete)，大小，和blob访问模式（基于年龄）。</p>
+<p><strong>集群扩展</strong>：模拟器起初拥有一组同一个数据中心的 Datanodes 磁盘 和partition 。随着时间的流逝，当partition接近容量上限时，一批新的partition使用2.2章的策略被添加。如果partition不能够被添加(磁盘没有空间了)，一批Datanodes将会被添加。</p>
+<h3 id="6-3-2-实验设置"><a href="#6-3-2-实验设置" class="headerlink" title="6.3.2 实验设置"></a>6.3.2 实验设置</h3><p>模拟器运行在单个数据中心，拥有十个Frontend节点。这个实验起初有15个Datanodes，每个都带有10个4TB 硬盘 和1200个100GB大小的partition，每个partition有三副本。当达到partition和Datanodes的需要增加的节点时，600个partition和Datanodes会被添加。模拟器运行了超过400周(几乎8年)并且拥有240个Datanodes。测量请求速率，磁盘使用率，和数据迁移时，模拟器运行了两种，一种是带有负载匀衡的，另外一个不带负载均衡，其他配置均相同。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/20.jpg" alt="image"></p>
+<h3 id="6-3-3-请求速率"><a href="#6-3-3-请求速率" class="headerlink" title="6.3.3 请求速率"></a>6.3.3 请求速率</h3><p>我们测量了每个磁盘的各个时间的读取速率(KB/s)，图16展示了系统带有负载均衡和没负载均衡的平均，标准差，最大，最小值。写的结果相似，因为空间原因被移除了。<br>平均值，是比较理想的，是一个逐步下降的函数。下降的点是因为新的Datanodes被添加到了集群中。在没有rebalancing的case中大部分老的磁盘都是只读的，几乎没有流量，然而新添加的磁盘收到了绝大部分的请求。因此最小值接近0。所以标准差和最大值有重要的意义(最大值比平均值大3-7倍，标准差比平均值大1-2倍)。当rebalancing机制添加后，标准差下降到接近为0.我们推断，Ambry的负载均衡是有效的。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/21.jpg" alt="image"></p>
+<h3 id="6-3-4-磁盘使用情况"><a href="#6-3-4-磁盘使用情况" class="headerlink" title="6.3.4 磁盘使用情况"></a>6.3.4 磁盘使用情况</h3><p>我们分析了带负载均衡和不带负载均衡的磁盘使用比例。例如使用的空间除以磁盘的总空间，如图17所示，没有负载均衡的最大值一直处于容量上限。因为一些磁盘已经满了，然而当新的Datanodes被添加进来时最小值接近于0.带有负载均衡的最小值和最大值接近平均值，最小值会临时下降，直到负载均衡完成。此外标准差下降明显，接近于0，偶尔跳起因为DataNodes被添加到集群中。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/22.jpg" alt="image"></p>
+<h3 id="6-3-5-这段时间的评估"><a href="#6-3-5-这段时间的评估" class="headerlink" title="6.3.5  这段时间的评估"></a>6.3.5  这段时间的评估</h3><p>我们评估了过去这段时间的改变，通过测量400周内的请求速率，磁盘使用的区间(最大值减最小值)和标准差。如表4所示。负载均衡有显著的效果，改善区间6-9倍和8-10倍标准差。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/24.jpg" alt="image"></p>
+<h3 id="6-3-6-数据迁移"><a href="#6-3-6-数据迁移" class="headerlink" title="6.3.6 数据迁移"></a>6.3.6 数据迁移</h3><p>当负载均衡被触发时，我们测量了由于负载均衡需要时造成的数据迁移，为了达到ideal状态的最小数据迁移。当添加使用率在ideal状态与当前状态之间且使用在ideal状态之上的磁盘时，我们计算了最最小数据迁移量。这个值比最小值低一点点。因为数据移动是按照partition移动的。如图18所示，数据建议非常接近最小迁移，有时还比那个值低，说明我们的算法是非常优秀的。需要特别注意的，负载均衡算法当添加或者删除磁盘使用率会高于或者低于ideal状态时，通常不会删除(或者添加)partition。因为有时这么做会打破平衡。</p>
+<h1 id="7-相关工作"><a href="#7-相关工作" class="headerlink" title="7 相关工作"></a>7 相关工作</h1><p><strong>文件系统</strong>：Ambry的设计受到了日志文件系统的启发[LFS].这些系统利用顺序写类日志数据结构优化了写的吞吐，使用系统缓存优化读。尽管这些这些系统承受着碎片问题和清理开销，但是核心的思想是非常有意义的，尤其是当blob是不可变对象时。主要的区别在于数据倾斜访问模式和额外的优化像使用分片索引和布隆过滤。</p>
+<p>已经有处理元数据和小文件的有效方法了。其中的一些技术包括 减少磁盘seek，联合使用日志结构系统（用于meta和小数据）和 快速文件系统(大文件)，使用索引块存储数据的起始段。我们的系统解决了这些问题，通过使用内存的数据分段索引和布隆过滤以及批量写技术。</p>
+<p><strong>分布式文件系统</strong>：由于大量数据和数据共享的徐牛，许多分布式文件系统，像NFS，AFS，同时出现了一些更可靠的能够处理故障的系统，像GFS，HDFS，和ceph。然而这些系统元数据开销太大，此外对于blob存储一些额外属性(目录，权限等等)也是不需要的。这些系统中的许多(例如HDFS，GFS，NFS)，由于单一的元数据服务器造成了，元数据的天花板。并且这个服务器（元数据服务器）,成了每个请求的中心，同时也成为了单点，由于单点的限制，扩展性也成了问题。最近的研究中，这个问题已经被分布式元数据或者缓存解决。尽管这些系统减少了元数据的访问，但是每个小对象仍然有很大的元数据(通常存储于硬盘)，降低了系统的吞吐。</p>
+<p><strong>分布式数据存储</strong>：许多kv存储，像 [2, 5, 8, 14],已经被设计为每秒可以处理大量请求。然而这些系统不能高效的处理大对象(数十MB到GB)，并且添加了额外的开销，为了维护异质性。也有一些系统[2, 8,14]使用哈希将数据分布到机器上，当机器添加时会发生大量的数据迁移。</p>
+<p>PNUTS [6] and Spanner [7]  是可扩展跨地区的分布式系统，PNUTS也保持了输在均衡。然而这些系统提供了更多的功能，和数据保障，但是对简单不可变的blob存储是不需要的。</p>
+<p><strong>blob存储</strong>: 与Ambry中的partition相似的概念已经在其他系统中被使用，Haystack使用了 logic volumes，Twitter’s blob store 使用virtual bucket，Petal file system 引入了虚拟磁盘。Ambry 从这些系统中引入了一些优化，例如Haystack中的添加内部缓存，然而，不管是Haystack还是Twitter‘blob store 都没有处理负载均衡的问题。此外Haystack使用同步写副本影响了跨机房的性能。<br>Facebook 已经设计了F4，一个blob 存储，对老数据使用纠删码来减少副本因子，尽管这些新思想可以引入Ambry，但是我们主要点是既需要新数据也需要老数据。Oracle’s Database [19] 和Windows Azure Storage (WAS) [4] 也能存储可变blob，并且WAS 甚至能够对跨机房环境进行优化。然而他们都提供了许多额外的数据类型和一致性保障还有可变blob，这是我们需求中不需要的。</p>
+<h1 id="8-结论"><a href="#8-结论" class="headerlink" title="8 结论"></a>8 结论</h1><p>这篇论文描述了Ambry，一个专门为存储不可变对象的分布式存储系统。我们将Ambry设计为一个可以在跨机房环境下提供低延时和高吞吐的系统。使用了分布式设计，再均衡机制，分块，和逻辑blob组(partition)，我们提供了一个负载均衡和水平扩展能力，来面对LinkedIn迅速增长。我们未来的一部分工作是改变热数据的副本机制，和使用纠删码机制来存储冷数据。我们也打算引入压缩机制，但是要权衡开销。此外我们正在改进Ambry的安全性，特别是跨数据中心流量。</p>
+<h1 id="9-致谢"><a href="#9-致谢" class="headerlink" title="9 致谢"></a>9 致谢</h1><p>略</p>
+<h1 id="10-参考"><a href="#10-参考" class="headerlink" title="10 参考"></a>10 参考</h1><p><img src="https://cdn.jsdelivr.net/gh/phantooom/image-box/ambry/23.jpg" alt="image"></p>
+
+    </div>
+
+    
+    
+    
+        <div class="reward-container">
+  <div>谢谢你请我充B站大会员</div>
+  <button onclick="var qr = document.getElementById('qr'); qr.style.display = (qr.style.display === 'none') ? 'block' : 'none';">
+    打赏
+  </button>
+  <div id="qr" style="display: none;">
+      
+      <div style="display: inline-block;">
+        <img src="/images/wx.png" alt="phantooom 微信支付">
+        <p>微信支付</p>
+      </div>
+      
+      <div style="display: inline-block;">
+        <img src="/images/ali.png" alt="phantooom 支付宝">
+        <p>支付宝</p>
+      </div>
+
+  </div>
+</div>
+
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E5%AF%B9%E8%B1%A1%E5%AD%98%E5%82%A8/" rel="tag"># 对象存储</a>
+              <a href="/tags/%E5%88%86%E5%B8%83%E5%BC%8F%E7%B3%BB%E7%BB%9F/" rel="tag"># 分布式系统</a>
+              <a href="/tags/%E5%AD%98%E5%82%A8/" rel="tag"># 存储</a>
+              <a href="/tags/SIGMOD/" rel="tag"># SIGMOD</a>
+              <a href="/tags/ambry/" rel="tag"># ambry</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2018/11/27/mapreduce/" rel="prev" title="mit 6.824 学习笔记 (一) MapReduce 详解">
+      <i class="fa fa-chevron-left"></i> mit 6.824 学习笔记 (一) MapReduce 详解
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2020/08/14/gfs/" rel="next" title="mit 6.824 学习笔记 (二) GFS 设计 (附脑图)">
+      mit 6.824 学习笔记 (二) GFS 设计 (附脑图) <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+    
+  <div class="comments">
+    <div id="disqus_thread">
+      <noscript>Please enable JavaScript to view the comments powered by Disqus.</noscript>
+    </div>
+  </div>
+  
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%91%98%E8%A6%81"><span class="nav-number">1.</span> <span class="nav-text">摘要</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%85%B3%E9%94%AE%E8%AF%8D"><span class="nav-number">2.</span> <span class="nav-text">关键词</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#1-%E4%BB%8B%E7%BB%8D"><span class="nav-number">3.</span> <span class="nav-text">1. 介绍</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#2-%E7%B3%BB%E7%BB%9F%E6%A6%82%E8%A7%88"><span class="nav-number">4.</span> <span class="nav-text">2. 系统概览</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#2-1-%E6%9E%B6%E6%9E%84"><span class="nav-number">4.1.</span> <span class="nav-text">2.1 架构</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-2-Partition"><span class="nav-number">4.2.</span> <span class="nav-text">2.2 Partition</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-3-%E6%93%8D%E4%BD%9C"><span class="nav-number">4.3.</span> <span class="nav-text">2.3 操作</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#3-%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1"><span class="nav-number">5.</span> <span class="nav-text">3 负载均衡</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#4-%E7%BB%84%E4%BB%B6%E8%AF%A6%E8%A7%A3"><span class="nav-number">6.</span> <span class="nav-text">4. 组件详解</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#4-1-Cluster-Manager"><span class="nav-number">6.1.</span> <span class="nav-text">4.1 Cluster Manager</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-1-%E7%A1%AC%E4%BB%B6%E5%B8%83%E5%B1%80"><span class="nav-number">6.1.1.</span> <span class="nav-text">4.1.1 硬件布局</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-2%E9%80%BB%E8%BE%91%E5%B8%83%E5%B1%80"><span class="nav-number">6.1.2.</span> <span class="nav-text">4.1.2逻辑布局</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-2-Frontend-%E5%B1%82"><span class="nav-number">6.2.</span> <span class="nav-text">4.2 Frontend 层</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-1-Router-%E5%BA%93"><span class="nav-number">6.2.1.</span> <span class="nav-text">4.2.1 Router 库</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-3-Datanode%E5%B1%82"><span class="nav-number">6.3.</span> <span class="nav-text">4.3 Datanode层</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-1-%E7%B4%A2%E5%BC%95"><span class="nav-number">6.3.1.</span> <span class="nav-text">4.3.1 索引</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-2-%E5%88%A9%E7%94%A8%E7%B3%BB%E7%BB%9F%E7%BC%93%E5%AD%98"><span class="nav-number">6.3.2.</span> <span class="nav-text">4.3.2 利用系统缓存</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#5-%E5%A4%8D%E5%88%B6"><span class="nav-number">7.</span> <span class="nav-text">5 复制</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#6-%E5%AE%9E%E9%AA%8C%E7%BB%93%E6%9E%9C"><span class="nav-number">8.</span> <span class="nav-text">6. 实验结果</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#6-1-%E5%90%9E%E5%90%90%E5%92%8C%E5%BB%B6%E6%97%B6"><span class="nav-number">8.1.</span> <span class="nav-text">6.1 吞吐和延时</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-1-%E5%BE%AE%E5%9E%8B-benchmark"><span class="nav-number">8.1.1.</span> <span class="nav-text">6.1.1 微型-benchmark</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-2-%E5%AE%9E%E9%AA%8C%E8%AE%BE%E7%BD%AE"><span class="nav-number">8.1.2.</span> <span class="nav-text">6.1.2 实验设置</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-3-client%E6%95%B0%E9%87%8F%E7%9A%84%E5%BD%B1%E5%93%8D"><span class="nav-number">8.1.3.</span> <span class="nav-text">6.1.3 client数量的影响</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-4-blob-%E5%A4%A7%E5%B0%8F%E7%9A%84%E5%BD%B1%E5%93%8D"><span class="nav-number">8.1.4.</span> <span class="nav-text">6.1.4 blob 大小的影响</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-5-%E5%BB%B6%E6%97%B6%E7%9A%84%E5%8F%98%E5%8C%96"><span class="nav-number">8.1.5.</span> <span class="nav-text">6.1.5 延时的变化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-6-Linux-Cache%E7%9A%84%E5%BD%B1%E5%93%8D"><span class="nav-number">8.1.6.</span> <span class="nav-text">6.1.6 Linux Cache的影响</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-%E8%B7%A8%E6%95%B0%E6%8D%AE%E4%B8%AD%E5%BF%83%E4%BC%98%E5%8C%96"><span class="nav-number">8.1.7.</span> <span class="nav-text">6.2 跨数据中心优化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-1-%E5%A4%8D%E5%88%B6%E8%90%BD%E5%90%8E"><span class="nav-number">8.1.8.</span> <span class="nav-text">6.2.1 复制落后</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-2%E5%A4%8D%E5%88%B6%E5%B8%A6%E5%AE%BD"><span class="nav-number">8.1.9.</span> <span class="nav-text">6.2.2复制带宽</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-3-%E5%A4%8D%E5%88%B6%E5%BB%B6%E6%97%B6"><span class="nav-number">8.1.10.</span> <span class="nav-text">6.2.3 复制延时</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-3-%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1"><span class="nav-number">8.2.</span> <span class="nav-text">6.3 负载均衡</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-1-%E6%A8%A1%E6%8B%9F%E5%99%A8%E8%AE%BE%E8%AE%A1"><span class="nav-number">8.2.1.</span> <span class="nav-text">6.3.1 模拟器设计</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-2-%E5%AE%9E%E9%AA%8C%E8%AE%BE%E7%BD%AE"><span class="nav-number">8.2.2.</span> <span class="nav-text">6.3.2 实验设置</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-3-%E8%AF%B7%E6%B1%82%E9%80%9F%E7%8E%87"><span class="nav-number">8.2.3.</span> <span class="nav-text">6.3.3 请求速率</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-4-%E7%A3%81%E7%9B%98%E4%BD%BF%E7%94%A8%E6%83%85%E5%86%B5"><span class="nav-number">8.2.4.</span> <span class="nav-text">6.3.4 磁盘使用情况</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-5-%E8%BF%99%E6%AE%B5%E6%97%B6%E9%97%B4%E7%9A%84%E8%AF%84%E4%BC%B0"><span class="nav-number">8.2.5.</span> <span class="nav-text">6.3.5  这段时间的评估</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-6-%E6%95%B0%E6%8D%AE%E8%BF%81%E7%A7%BB"><span class="nav-number">8.2.6.</span> <span class="nav-text">6.3.6 数据迁移</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#7-%E7%9B%B8%E5%85%B3%E5%B7%A5%E4%BD%9C"><span class="nav-number">9.</span> <span class="nav-text">7 相关工作</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#8-%E7%BB%93%E8%AE%BA"><span class="nav-number">10.</span> <span class="nav-text">8 结论</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#9-%E8%87%B4%E8%B0%A2"><span class="nav-number">11.</span> <span class="nav-text">9 致谢</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#10-%E5%8F%82%E8%80%83"><span class="nav-number">12.</span> <span class="nav-text">10 参考</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="phantooom"
+      src="/images/head.jpeg">
+  <p class="site-author-name" itemprop="name">phantooom</p>
+  <div class="site-description" itemprop="description">专业系统研(yun)究(wei)者</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">5</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">5</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">13</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/phantooom" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;phantooom" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:xiaorui.zou@gmail.com" title="E-Mail → mailto:xiaorui.zou@gmail.com" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://www.zhihu.com/people/zoubapi" title="zhihu → https:&#x2F;&#x2F;www.zhihu.com&#x2F;people&#x2F;zoubapi" rel="noopener" target="_blank"><i class="fab fa-zhihu fa-fw"></i>zhihu</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://www.linkedin.com/in/%E7%91%9E-%E9%82%B9-30427a101/" title="LinkedIn → https:&#x2F;&#x2F;www.linkedin.com&#x2F;in&#x2F;%E7%91%9E-%E9%82%B9-30427a101&#x2F;" rel="noopener" target="_blank"><i class="fab fa-linkedin fa-fw"></i>LinkedIn</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 2018 – 
+  <span itemprop="copyrightYear">2021</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">phantooom</span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item-icon">
+      <i class="fa fa-chart-area"></i>
+    </span>
+    <span title="站点总字数">57k</span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item-icon">
+      <i class="fa fa-coffee"></i>
+    </span>
+    <span title="站点阅读时长">3:56</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://pisces.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js"></script>
+  <script src="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+<script>
+  function loadCount() {
+    var d = document, s = d.createElement('script');
+    s.src = 'https://zou-ba-pi-shi-yan-shi.disqus.com/count.js';
+    s.id = 'dsq-count-scr';
+    (d.head || d.body).appendChild(s);
+  }
+  // defer loading until the whole page loading is completed
+  window.addEventListener('load', loadCount, false);
+</script>
+<script>
+  var disqus_config = function() {
+    this.page.url = "https://zou.cool/2018/12/13/ambry/";
+    this.page.identifier = "2018/12/13/ambry/";
+    this.page.title = "ambry LinkedIn 对象存储 论文翻译";
+    };
+  NexT.utils.loadComments(document.querySelector('#disqus_thread'), () => {
+    if (window.DISQUS) {
+      DISQUS.reset({
+        reload: true,
+        config: disqus_config
+      });
+    } else {
+      var d = document, s = d.createElement('script');
+      s.src = 'https://zou-ba-pi-shi-yan-shi.disqus.com/embed.js';
+      s.setAttribute('data-timestamp', '' + +new Date());
+      (d.head || d.body).appendChild(s);
+    }
+  });
+</script>
+
+</body>
+</html>

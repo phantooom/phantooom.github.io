@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.4.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"zou.cool","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":true,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="序haystack 是facebook 开发的对象存储系统,用来存储facebook的照片,面对海量的图片数据,从中取回一张图片确实很像大海捞针,文章的名字还是比较有有意思的,相关的设计发表在了osdi 原文链接 文章总体分为6大部分，主要总结了facebook遇到的问题,总结过去遇到的问题,回顾过去的解决方案，进而规避过去方案的不足从而设计了haystack来解决之前的问题,并在文章的最后进行了">
+<meta property="og:type" content="article">
+<meta property="og:title" content="haystack 指北">
+<meta property="og:url" content="https://zou.cool/2018/08/11/haystack-%E6%8C%87%E5%8C%97/index.html">
+<meta property="og:site_name" content="邹扒皮实验室">
+<meta property="og:description" content="序haystack 是facebook 开发的对象存储系统,用来存储facebook的照片,面对海量的图片数据,从中取回一张图片确实很像大海捞针,文章的名字还是比较有有意思的,相关的设计发表在了osdi 原文链接 文章总体分为6大部分，主要总结了facebook遇到的问题,总结过去遇到的问题,回顾过去的解决方案，进而规避过去方案的不足从而设计了haystack来解决之前的问题,并在文章的最后进行了">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/haystack/01.png">
+<meta property="og:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/haystack/02.png">
+<meta property="og:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/haystack/03.png">
+<meta property="og:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/haystack/04.png">
+<meta property="og:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/haystack/05.png">
+<meta property="og:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/haystack/06.png">
+<meta property="og:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/haystack/07.png">
+<meta property="og:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/haystack/08.png">
+<meta property="og:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/haystack/09.png">
+<meta property="og:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/haystack/10.png">
+<meta property="og:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/haystack/12.png">
+<meta property="og:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/haystack/13.png">
+<meta property="article:published_time" content="2018-08-11T07:48:53.000Z">
+<meta property="article:modified_time" content="2021-11-25T02:08:55.337Z">
+<meta property="article:author" content="phantooom">
+<meta property="article:tag" content="对象存储">
+<meta property="article:tag" content="分布式系统">
+<meta property="article:tag" content="存储">
+<meta property="article:tag" content="osdi">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/haystack/01.png">
+
+<link rel="canonical" href="https://zou.cool/2018/08/11/haystack-%E6%8C%87%E5%8C%97/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>haystack 指北 | 邹扒皮实验室</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">邹扒皮实验室</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">胆小怕事,愤而删库</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://zou.cool/2018/08/11/haystack-%E6%8C%87%E5%8C%97/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/head.jpeg">
+      <meta itemprop="name" content="phantooom">
+      <meta itemprop="description" content="专业系统研(yun)究(wei)者">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="邹扒皮实验室">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          haystack 指北
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2018-08-11 15:48:53" itemprop="dateCreated datePublished" datetime="2018-08-11T15:48:53+08:00">2018-08-11</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2021-11-25 10:08:55" itemprop="dateModified" datetime="2021-11-25T10:08:55+08:00">2021-11-25</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%88%86%E5%B8%83%E5%BC%8F%E7%B3%BB%E7%BB%9F/" itemprop="url" rel="index"><span itemprop="name">分布式系统</span></a>
+                </span>
+                  ，
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%88%86%E5%B8%83%E5%BC%8F%E7%B3%BB%E7%BB%9F/%E5%88%86%E5%B8%83%E5%BC%8F%E5%AD%98%E5%82%A8/" itemprop="url" rel="index"><span itemprop="name">分布式存储</span></a>
+                </span>
+            </span>
+
+          
+  
+  <span class="post-meta-item">
+    
+      <span class="post-meta-item-icon">
+        <i class="far fa-comment"></i>
+      </span>
+      <span class="post-meta-item-text">Disqus：</span>
+    
+    <a title="disqus" href="/2018/08/11/haystack-%E6%8C%87%E5%8C%97/#disqus_thread" itemprop="discussionUrl">
+      <span class="post-comments-count disqus-comment-count" data-disqus-identifier="2018/08/11/haystack-指北/" itemprop="commentCount"></span>
+    </a>
+  </span>
+  
+  <br>
+            <span class="post-meta-item" title="本文字数">
+              <span class="post-meta-item-icon">
+                <i class="far fa-file-word"></i>
+              </span>
+                <span class="post-meta-item-text">本文字数：</span>
+              <span>5.1k</span>
+            </span>
+            <span class="post-meta-item" title="阅读时长">
+              <span class="post-meta-item-icon">
+                <i class="far fa-clock"></i>
+              </span>
+                <span class="post-meta-item-text">阅读时长 &asymp;</span>
+              <span>21 分钟</span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h3 id="序"><a href="#序" class="headerlink" title="序"></a>序</h3><p>haystack 是facebook 开发的对象存储系统,用来存储facebook的照片,面对海量的图片数据,从中取回一张图片确实很像大海捞针,文章的名字还是比较有有意思的,相关的设计发表在了<code>osdi</code> <a target="_blank" rel="noopener" href="https://www.usenix.org/legacy/event/osdi10/tech/full_papers/Beaver.pdf">原文链接</a> 文章总体分为6大部分，主要总结了facebook遇到的问题,总结过去遇到的问题,回顾过去的解决方案，进而规避过去方案的不足从而设计了haystack来解决之前的问题,并在文章的最后进行了性能相关的分析。本博文主要摘取重要部分进行摘录，并进行进一步讨论和研究,同时回避了CDN相关的章节。</p>
+<span id="more"></span>
+
+<h4 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h4><h5 id="一些数字"><a href="#一些数字" class="headerlink" title="一些数字"></a>一些数字</h5><ul>
+<li>6500亿张照片</li>
+<li>2.6万亿 张图片</li>
+<li>20PB</li>
+<li>每周10亿张新增照片</li>
+<li>每周新增存储60TB</li>
+<li>峰值请求100万/s</li>
+</ul>
+<p><code>未来这些数字会持续上涨,基础设施将会面临非常大的挑战。</code></p>
+<h5 id="业务特征"><a href="#业务特征" class="headerlink" title="业务特征"></a>业务特征</h5><p><code>一次写,频繁的读取,不修改,很少删除。</code></p>
+<h5 id="过去的经验"><a href="#过去的经验" class="headerlink" title="过去的经验"></a>过去的经验</h5><p><code>使用posix文件系统存储文件</code></p>
+<p>问题: 当文件数量增加时获取一个图片需要多次io,磁盘io有限,所以会导致获取图片效率降低。</p>
+<ul>
+<li>原因 <ul>
+<li>读取文件的过程是 <ul>
+<li>读取目录元数据获取文件inode</li>
+<li>读取文件inode</li>
+<li>读取真实文件。</li>
+</ul>
+</li>
+<li>上面的步骤据需要将元数据缓存到内存当中<ul>
+<li>元数据中有大量对于业务场景不需要的数据<ul>
+<li>创建时间</li>
+<li>修改时间</li>
+<li>权限</li>
+<li>组</li>
+<li>etc…</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>当文件过多时目录的元数据会变得越来越大,读取目录时就需要多次IO,同时由于目录元数据太大能cache能缓存的目录元数据会下降，频繁的被淘汰，导致经常要重新从磁盘读取目录元数据,导致io增加。</li>
+</ul>
+</li>
+</ul>
+<h5 id="haystack"><a href="#haystack" class="headerlink" title="haystack"></a>haystack</h5><p><code>Facebook设计了haystack为了解决上述问题</code></p>
+<ul>
+<li>高吞吐低延时: 减少图片元数据并且保存在内存当中</li>
+<li>容错：haystack复制到了多地,一台机器挂了备用的可以顶上来。</li>
+<li>性价比: 成本下降了28%,提供的请求提升了4倍。 </li>
+<li>简洁：刻意保持简单。</li>
+</ul>
+<h4 id="过去的设计"><a href="#过去的设计" class="headerlink" title="过去的设计"></a>过去的设计</h4><h5 id="基于NFS的设计"><a href="#基于NFS的设计" class="headerlink" title="基于NFS的设计"></a>基于NFS的设计</h5><p><img src="https://cdn.jsdelivr.net/gh/phantooom/image-box/haystack/01.png" alt="image"></p>
+<p><code>背景</code></p>
+<p>CDN 并不能解决所有问题，facebook面临着大量的长尾请求(很久之前上传的照片)。而这个问题需要自己去解决。</p>
+<h6 id="设计"><a href="#设计" class="headerlink" title="设计"></a>设计</h6><p>整体图片存储系统分为三层</p>
+<ul>
+<li>图片存储系统<ul>
+<li>第一层 CDN 缓存</li>
+<li>第二层 PhotoStorageServer 图片路由逻辑</li>
+<li>第三层 Nas 最终文件存储</li>
+</ul>
+</li>
+</ul>
+<p>图片文件存储在NAS上, NAS被mount到 PhotoStorageServer上面，PhotoStorageServer 根据文件的URL解析得到完整的文件目录,在NFS上读取数据并返回。</p>
+<p>期初在每个目录下存储了几千个文件,导致读取一个文件都有可能产生10个IO,这是由于NAS设备管理元数据的机制造成的，因为目录的blockmap不能被设备有效缓存，后来将每个目录的文件减少到了数百个后系统仍然需要3个IO来获取一个图片，一个读取目录元数据到内存，第二个装在inode到内存，最后读取文件内容。</p>
+<p>为了继续减少磁盘IO操作,让图片存储服务器缓存NAS设备返回的问价句柄，并且在内核中添加了通过文件句柄打开文件的接口，然而这个改动并没有起到很好的效果，同样是因为长尾效应，并且存储服服务器不能缓存所有的文件句柄，因为这么做的成本过于高。最终意识到,存储系统使用缓存对减少磁盘IO操作是有限的，图片存储服务器最终还是要处理长尾的请求。</p>
+<ul>
+<li>TIPS: 使用缓存的方式似乎已经行不通了，所以面对长尾的请求只能想方设法通过别的办法减少磁盘IO。</li>
+</ul>
+<h6 id="讨论"><a href="#讨论" class="headerlink" title="讨论"></a>讨论</h6><p>面对NFS设计的瓶颈，facebook讨论了是否可以构建一个类似GFS的系统，而他们大部分的用户数据都是存在Mysql中，文件存储主要用于日志图片存储，NAS对这些场景提供了很高性价比的解决方案,此外，他们也有hadoop用于海量日志数据处理，对于图片的长尾问题 Mysql NAS Hadoop 都不太合适。</p>
+<h6 id="困境"><a href="#困境" class="headerlink" title="困境"></a>困境</h6><p>是现有的存储系统没有一个合适的ram-to-disk的比例，系统需要缓存所有的文件系统元数据，在基于NAS的方案中，一个图片对应到一个文件，每个文件至少需要一个inode 大约在 几百个byte,所以Facebook决定构建一个定制的存储系统，减少每个图片的元数据，以便内存能够缓存所有的元数据。</p>
+<h4 id="haystack设计和实现"><a href="#haystack设计和实现" class="headerlink" title="haystack设计和实现"></a>haystack设计和实现</h4><p>haystack的设计就是为了用来解决系统之前的瓶颈的: 磁盘IO操作。接受长尾请求带来的磁盘IO。</p>
+<h5 id="核心思想"><a href="#核心思想" class="headerlink" title="核心思想"></a>核心思想</h5><ol>
+<li>一个图片存为单独一个文件会导致太多的元数据<ul>
+<li>删除无用的元数据,haystack维护一个大文件,小文件分布在大文件中,haystack自行维护文件的offset,控制文件数量.</li>
+</ul>
+</li>
+<li>元数据太大无法缓存<ul>
+<li>haystack删除了无用的元数据,仅保留图片相关的基本元数据</li>
+</ul>
+</li>
+<li>减少除了访问真实文件之外的IO操作<ul>
+<li>使用单独的大文件,不需要每个文件都要重新去加载数据,在内存保存了所有的元数据</li>
+</ul>
+</li>
+</ol>
+<p>TIPS: 元数据分为两种需要注意区分 一种 <strong>是应用元数据</strong> 一种是 <strong>文件系统元数据</strong> ，前者用来构建浏览器访问的url，后者用于在磁盘上进行文件检索。</p>
+<h5 id="设计概览"><a href="#设计概览" class="headerlink" title="设计概览"></a>设计概览</h5><p><img src="https://cdn.jsdelivr.net/gh/phantooom/image-box/haystack/02.png" alt="image"></p>
+<p>haystack 分为三个组件</p>
+<ul>
+<li>store<ul>
+<li>持久化存储系统,负责管理图片元数据与图片数据持久化。 </li>
+<li>store将文件存储在物理卷上，每个机器有多个物理卷。</li>
+<li>不同机器上面的多个物理卷对应到一个逻辑卷</li>
+<li>图片写入到一个逻辑卷时会同时写入到对应的多个物理卷当中用于避免磁盘故障。</li>
+</ul>
+</li>
+<li>Directory<ul>
+<li>维护逻辑卷到物理卷的映射关系</li>
+<li>维护应用元数据</li>
+<li>维护逻辑卷的空闲空间</li>
+<li>维护图片对应的逻辑卷</li>
+</ul>
+</li>
+<li>cache<ul>
+<li>缓存服务</li>
+</ul>
+</li>
+</ul>
+<p>当用户访问页面图片时 web server 使用  Directory 构造一个图片 url</p>
+<p>一个典型的url <code>http://&lt;CDN&gt;/&lt;Cache&gt;/&lt;Machine id&gt;/&lt;Logical volume, Photo&gt;</code></p>
+<p><img src="https://cdn.jsdelivr.net/gh/phantooom/image-box/haystack/03.png" alt="image"></p>
+<p><code>上传流程</code></p>
+<ol>
+<li>浏览器对webserver 发起请求</li>
+<li>webserver请求 diectory</li>
+<li>diectory 返回一个可写的逻辑卷</li>
+<li>webserver为图片分配一个唯一的ID, 上传图片到逻辑卷背后对应的每个物理卷</li>
+</ol>
+<h5 id="Directory"><a href="#Directory" class="headerlink" title="Directory"></a>Directory</h5><p>主要提供四个功能</p>
+<ol>
+<li>提供逻辑卷到物理卷的映射</li>
+<li>为 读请求分配的逻辑卷 和 读请求分配的物理卷 提供负载均衡</li>
+<li>决定一个请求应该被发送到CDN还是cache</li>
+<li>标注哪些卷是只读的，为了方便这里只提供机器维度的。</li>
+</ol>
+<p>新添加的机器应该是可写的,可写的机器会收到upload请求，随之时间的流逝，机器的容量会不断的减小，当容量写满时会被标记为只读。</p>
+<p>directory将应用元数据存储在一个数据库，通接口进行访问</p>
+<p>当一个store机器故障时，directory在应用元数据中删除对应的项，新机器上线后会接替此项。</p>
+<ul>
+<li>TIPS: 借助了外部数据库去保存应用的元数据, 可以猜测可能保存了如下元数据。<ul>
+<li>机器-物理卷 映射</li>
+<li>逻辑卷-物理卷 映射</li>
+<li>逻辑卷是否可写</li>
+<li>机器是否下线</li>
+<li>cookie</li>
+<li>图片id 到 逻辑卷的映射</li>
+<li>etc…</li>
+</ul>
+</li>
+</ul>
+<h5 id="Cache"><a href="#Cache" class="headerlink" title="Cache"></a>Cache</h5><p>cache从CDN或者用户侧接收请求，本质上是一个DHT。</p>
+<ul>
+<li>缓存内容<ul>
+<li>直接来自用户侧的请求</li>
+<li>图片存在于一个可写的Store节点(刚刚上传的图片通常会在一段时间内被频繁访问)</li>
+</ul>
+</li>
+</ul>
+<h5 id="Store"><a href="#Store" class="headerlink" title="Store"></a>Store</h5><p>存储数据的节点，通过id cookie lvm machine 等信息可以直接返回图片。<br>每个Store 管理多个物理卷，每个物理卷存在一个超级块结构如下图。通过逻辑卷id 在内存中查找对应的元数据,通过文件的offset操作既可定位到超级块中的图片位置并返回。<br><img src="https://cdn.jsdelivr.net/gh/phantooom/image-box/haystack/04.png" alt="image"></p>
+<p>每个文件称之为一个needle结构如下</p>
+<ul>
+<li><p>needle</p>
+<ul>
+<li>Header Magic Number 主要用作标记文件开始</li>
+<li>Cookie 与客户端请求携带的cookie做对比,防止图片url暴力猜解(cookie为上传时生成不可更改)</li>
+<li>Key 图片id 64 bit</li>
+<li>Alternate key 32 bit 图片规格</li>
+<li>Flags 标记是否删除</li>
+<li>Size 标记文件实体大小</li>
+<li>Footer Magic Number 标记图片文件结束用来恢复使用</li>
+<li>Data checksum 用来校验Data 是否正确</li>
+<li>Padding 对齐</li>
+</ul>
+</li>
+<li><p>图片读取</p>
+<ul>
+<li>cache 请求 sotre</li>
+<li>store 解析url 获取 lvm_id,key,alternate_key,cookie</li>
+<li>找到lvm 对应的物理卷</li>
+<li>根据 lvm_id,key,alternate_key 查找内存中的元数据</li>
+<li>通过根据元数据中的超级块, offset找到对应图片的起始位置</li>
+<li>获取cookie 并比较cookie<ul>
+<li>成功则返回data</li>
+<li>失败则返回错误</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><p>图片写入</p>
+<ul>
+<li>web 服务器请求 Directory 获得可写lvm,</li>
+<li>web服务器生成key, alternate key , cookie, 同步写入对应的store节点</li>
+<li>sotre 节点生成对应的needle 并append到文件的末尾</li>
+<li>更新store的元数据</li>
+</ul>
+</li>
+</ul>
+<p>TIPS: 原文中没有描述何时更新directory的应用元数据,个人猜测是写入成功后由webserver 发起通知directory创建对应的应用元数据。</p>
+<ul>
+<li><p>图片删除</p>
+<ul>
+<li>将内存中的flag与文件中的flag都设置为删除 </li>
+</ul>
+</li>
+<li><p>索引文件</p>
+<ul>
+<li>作用 快速通过索引文件恢复内存中的映射而非读取完整的超级块去恢复,有效减少store server 重启时间</li>
+<li>设计<ul>
+<li>存储结构如下图</li>
+<li>索引文件写入<ul>
+<li>异步写<ul>
+<li>问题: 有些写入的needle没有对应的索引无法通过索引恢</li>
+<li>解决: 从索引文件最后一个被索引的文件，开始读取超级块进行恢复</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p><img src="https://cdn.jsdelivr.net/gh/phantooom/image-box/haystack/05.png" alt="image"><br><img src="https://cdn.jsdelivr.net/gh/phantooom/image-box/haystack/06.png" alt="image"></p>
+<ul>
+<li><p>文件系统</p>
+<ul>
+<li>使用xfs<ul>
+<li>blockmap 小可以缓存到内存中</li>
+<li>支持extent 预分配存储块,防止不连续块增加io次数</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><p>故障恢复</p>
+<ul>
+<li>后台定时检查，有问题人工介入</li>
+</ul>
+</li>
+<li><p>优化</p>
+<ul>
+<li>压缩 定期清理标记删除的照片通常是从头读到尾丢弃已经删除的文件，并将新的照片写入一个新的超级块中</li>
+<li>节省内存:  <ul>
+<li>去掉falg 使用size 0 标记删除</li>
+</ul>
+</li>
+<li>批量上传</li>
+</ul>
+</li>
+<li><p>对比</p>
+<ul>
+<li>key 64 bit + 4 * 32bit alternate key + size 4 * 16bit  = 32Byte </li>
+</ul>
+</li>
+</ul>
+<h2 id="评测"><a href="#评测" class="headerlink" title="评测"></a>评测</h2><ul>
+<li><p>照片请求特征</p>
+<ul>
+<li>98%的照片请求发生在feed和相册,2天内请求多,随后降低。<br><img src="https://cdn.jsdelivr.net/gh/phantooom/image-box/haystack/07.png" alt="image"></li>
+<li>小图的请求比例高，原因是feed流和相册的列表均展示的是缩略图，用来降低延时,下图展示了4种尺寸的图片的请求数量和比例<br><img src="https://cdn.jsdelivr.net/gh/phantooom/image-box/haystack/08.png" alt="image"></li>
+</ul>
+</li>
+<li><p>Haystack Directory 通过简单的hash策略有效的负载了服务,如下图所示，400-600个请求每分钟<br><img src="https://cdn.jsdelivr.net/gh/phantooom/image-box/haystack/09.png" alt="image"></p>
+</li>
+<li><p>Haystack Store </p>
+<ul>
+<li>实验装置<ul>
+<li>硬件<ul>
+<li>2 hyper-threaded quad-core Intel Xeon<br>CPUs</li>
+<li>48 GB memory</li>
+<li>12 x 1TB SATA drives raid6 关闭磁盘缓存</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Benchmark <ul>
+<li>工具 Haystress 自研工具发送http请求接口</li>
+<li>结果如下图所示:<br><img src="https://cdn.jsdelivr.net/gh/phantooom/image-box/haystack/10.png" alt="image"></li>
+<li>A(读取64K) 用例吞吐量达到了原始存取的85%吞吐,延时只增加了17%</li>
+<li>B(读取70% 8K 30% 64K)</li>
+<li>其他的均为64K</li>
+</ul>
+</li>
+<li>负载<ul>
+<li>考察一组机器的负载，配置相同，一部分可写可读，一部分只读。如下图所示<br><img src="https://cdn.jsdelivr.net/gh/phantooom/image-box/haystack/12.png" alt="image"></li>
+<li>周日与周一是上传文件的高峰</li>
+<li>线上环境一般会开启多个writter</li>
+<li>可写的服务器,删除的操作也很多</li>
+<li>当一个可写的服务写入越来越多的图片后获取图片的请求比例随之增加,但请求的延时并没有显著的增加如下图所示<br><img src="https://cdn.jsdelivr.net/gh/phantooom/image-box/haystack/13.png" alt="image"></li>
+<li>多个writter写入非常平稳,尽管当写入流量非常大的时候，主要原因raid控制器提供了buffer作为缓冲。</li>
+<li>可写的节点主要受三部分因素影响<ul>
+<li> 照片数的增长读流量的增长</li>
+<li> 缓存通常可写的store内的文件会被cache缓存</li>
+<li> 可写的机器写入的文件通常会被立刻读取</li>
+</ul>
+</li>
+<li>存储节点的cpu负载较低空闲时间为92%~96%</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><p>相关工作</p>
+<ul>
+<li>文件系统<ul>
+<li>文件系统方面参考了 log-structured 文件系统,通过日志提高吞吐，通过缓存来解决读的性能。</li>
+</ul>
+</li>
+<li>对象存储<ul>
+<li>参考了一类对象存储的设计基于用户态构建了对象存储</li>
+</ul>
+</li>
+<li>元数据管理<ul>
+<li>haystack并没有像ceph那样通过算法计算获得数据间的映射,而是显示的保存了映射关系，也没有像某些系统将元数据信息保存在object id 中,相反facebook认为对应关系是社交元数据中的一部分应当被管理。</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h2 id="个人总结"><a href="#个人总结" class="headerlink" title="个人总结"></a>个人总结</h2><h5 id="到处存在的元数据"><a href="#到处存在的元数据" class="headerlink" title="到处存在的元数据"></a>到处存在的元数据</h5><p>早期实现的方案中, 元数据分散在各个文件当中,并且是无用的,每次请求图片的时候都要,读入内存,面对海量图片的场景性能有巨大的影响。</p>
+<h5 id="N-合-1"><a href="#N-合-1" class="headerlink" title="N 合 1"></a>N 合 1</h5><p>为了减少无效IO(比如目录项的元数据,比如文件的权限信息),将零散的小文件拼接成一个大文件维护少量的元数据(id offset size cookie 等),有效减少io,并且元数据可以缓存在内存中,减少了大量无效IO。</p>
+<h5 id="快速恢复"><a href="#快速恢复" class="headerlink" title="快速恢复"></a>快速恢复</h5><p>haystack 的元数据是保存在内存中的,当系统崩溃,当然可以直接从超级块中恢复索引,但是由于文件特别大遍历所有文件需要大量IO并且时间缓慢,hasytack 写对象的时候会异步的写索引文件,系统发生崩溃时会从索引快速恢复,并且从索引随后一个文件的offset遍历超级快进行孤儿对象恢复。</p>
+<h5 id="文件系统优化"><a href="#文件系统优化" class="headerlink" title="文件系统优化"></a>文件系统优化</h5><p>使用 extent 技术预分配存存储空间保证文件布局在物理介质上连续,减少随机io影响。</p>
+
+    </div>
+
+    
+    
+    
+        <div class="reward-container">
+  <div>谢谢你请我充B站大会员</div>
+  <button onclick="var qr = document.getElementById('qr'); qr.style.display = (qr.style.display === 'none') ? 'block' : 'none';">
+    打赏
+  </button>
+  <div id="qr" style="display: none;">
+      
+      <div style="display: inline-block;">
+        <img src="/images/wx.png" alt="phantooom 微信支付">
+        <p>微信支付</p>
+      </div>
+      
+      <div style="display: inline-block;">
+        <img src="/images/ali.png" alt="phantooom 支付宝">
+        <p>支付宝</p>
+      </div>
+
+  </div>
+</div>
+
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E5%AF%B9%E8%B1%A1%E5%AD%98%E5%82%A8/" rel="tag"># 对象存储</a>
+              <a href="/tags/%E5%88%86%E5%B8%83%E5%BC%8F%E7%B3%BB%E7%BB%9F/" rel="tag"># 分布式系统</a>
+              <a href="/tags/%E5%AD%98%E5%82%A8/" rel="tag"># 存储</a>
+              <a href="/tags/osdi/" rel="tag"># osdi</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item"></div>
+      <div class="post-nav-item">
+    <a href="/2018/11/27/mapreduce/" rel="next" title="mit 6.824 学习笔记 (一) MapReduce 详解">
+      mit 6.824 学习笔记 (一) MapReduce 详解 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+    
+  <div class="comments">
+    <div id="disqus_thread">
+      <noscript>Please enable JavaScript to view the comments powered by Disqus.</noscript>
+    </div>
+  </div>
+  
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%BA%8F"><span class="nav-number">1.</span> <span class="nav-text">序</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%AE%80%E4%BB%8B"><span class="nav-number">1.1.</span> <span class="nav-text">简介</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#%E4%B8%80%E4%BA%9B%E6%95%B0%E5%AD%97"><span class="nav-number">1.1.1.</span> <span class="nav-text">一些数字</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E4%B8%9A%E5%8A%A1%E7%89%B9%E5%BE%81"><span class="nav-number">1.1.2.</span> <span class="nav-text">业务特征</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E8%BF%87%E5%8E%BB%E7%9A%84%E7%BB%8F%E9%AA%8C"><span class="nav-number">1.1.3.</span> <span class="nav-text">过去的经验</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#haystack"><span class="nav-number">1.1.4.</span> <span class="nav-text">haystack</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E8%BF%87%E5%8E%BB%E7%9A%84%E8%AE%BE%E8%AE%A1"><span class="nav-number">1.2.</span> <span class="nav-text">过去的设计</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#%E5%9F%BA%E4%BA%8ENFS%E7%9A%84%E8%AE%BE%E8%AE%A1"><span class="nav-number">1.2.1.</span> <span class="nav-text">基于NFS的设计</span></a><ol class="nav-child"><li class="nav-item nav-level-6"><a class="nav-link" href="#%E8%AE%BE%E8%AE%A1"><span class="nav-number">1.2.1.1.</span> <span class="nav-text">设计</span></a></li><li class="nav-item nav-level-6"><a class="nav-link" href="#%E8%AE%A8%E8%AE%BA"><span class="nav-number">1.2.1.2.</span> <span class="nav-text">讨论</span></a></li><li class="nav-item nav-level-6"><a class="nav-link" href="#%E5%9B%B0%E5%A2%83"><span class="nav-number">1.2.1.3.</span> <span class="nav-text">困境</span></a></li></ol></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#haystack%E8%AE%BE%E8%AE%A1%E5%92%8C%E5%AE%9E%E7%8E%B0"><span class="nav-number">1.3.</span> <span class="nav-text">haystack设计和实现</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#%E6%A0%B8%E5%BF%83%E6%80%9D%E6%83%B3"><span class="nav-number">1.3.1.</span> <span class="nav-text">核心思想</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E8%AE%BE%E8%AE%A1%E6%A6%82%E8%A7%88"><span class="nav-number">1.3.2.</span> <span class="nav-text">设计概览</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#Directory"><span class="nav-number">1.3.3.</span> <span class="nav-text">Directory</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#Cache"><span class="nav-number">1.3.4.</span> <span class="nav-text">Cache</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#Store"><span class="nav-number">1.3.5.</span> <span class="nav-text">Store</span></a></li></ol></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%AF%84%E6%B5%8B"><span class="nav-number"></span> <span class="nav-text">评测</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%AA%E4%BA%BA%E6%80%BB%E7%BB%93"><span class="nav-number"></span> <span class="nav-text">个人总结</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#%E5%88%B0%E5%A4%84%E5%AD%98%E5%9C%A8%E7%9A%84%E5%85%83%E6%95%B0%E6%8D%AE"><span class="nav-number">0.0.1.</span> <span class="nav-text">到处存在的元数据</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#N-%E5%90%88-1"><span class="nav-number">0.0.2.</span> <span class="nav-text">N 合 1</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E5%BF%AB%E9%80%9F%E6%81%A2%E5%A4%8D"><span class="nav-number">0.0.3.</span> <span class="nav-text">快速恢复</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F%E4%BC%98%E5%8C%96"><span class="nav-number">0.0.4.</span> <span class="nav-text">文件系统优化</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="phantooom"
+      src="/images/head.jpeg">
+  <p class="site-author-name" itemprop="name">phantooom</p>
+  <div class="site-description" itemprop="description">专业系统研(yun)究(wei)者</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">5</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">5</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">13</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/phantooom" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;phantooom" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:xiaorui.zou@gmail.com" title="E-Mail → mailto:xiaorui.zou@gmail.com" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://www.zhihu.com/people/zoubapi" title="zhihu → https:&#x2F;&#x2F;www.zhihu.com&#x2F;people&#x2F;zoubapi" rel="noopener" target="_blank"><i class="fab fa-zhihu fa-fw"></i>zhihu</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://www.linkedin.com/in/%E7%91%9E-%E9%82%B9-30427a101/" title="LinkedIn → https:&#x2F;&#x2F;www.linkedin.com&#x2F;in&#x2F;%E7%91%9E-%E9%82%B9-30427a101&#x2F;" rel="noopener" target="_blank"><i class="fab fa-linkedin fa-fw"></i>LinkedIn</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 2018 – 
+  <span itemprop="copyrightYear">2021</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">phantooom</span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item-icon">
+      <i class="fa fa-chart-area"></i>
+    </span>
+    <span title="站点总字数">57k</span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item-icon">
+      <i class="fa fa-coffee"></i>
+    </span>
+    <span title="站点阅读时长">3:56</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://pisces.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js"></script>
+  <script src="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+<script>
+  function loadCount() {
+    var d = document, s = d.createElement('script');
+    s.src = 'https://zou-ba-pi-shi-yan-shi.disqus.com/count.js';
+    s.id = 'dsq-count-scr';
+    (d.head || d.body).appendChild(s);
+  }
+  // defer loading until the whole page loading is completed
+  window.addEventListener('load', loadCount, false);
+</script>
+<script>
+  var disqus_config = function() {
+    this.page.url = "https://zou.cool/2018/08/11/haystack-%E6%8C%87%E5%8C%97/";
+    this.page.identifier = "2018/08/11/haystack-指北/";
+    this.page.title = "haystack 指北";
+    };
+  NexT.utils.loadComments(document.querySelector('#disqus_thread'), () => {
+    if (window.DISQUS) {
+      DISQUS.reset({
+        reload: true,
+        config: disqus_config
+      });
+    } else {
+      var d = document, s = d.createElement('script');
+      s.src = 'https://zou-ba-pi-shi-yan-shi.disqus.com/embed.js';
+      s.setAttribute('data-timestamp', '' + +new Date());
+      (d.head || d.body).appendChild(s);
+    }
+  });
+</script>
+
+</body>
+</html>

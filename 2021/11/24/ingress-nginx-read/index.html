@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.4.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"zou.cool","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":true,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="简介nginx-ingress-controller 是最常用的 ingress-controller 之一，也是当前公司生产在使用的ingress。这边会分析主流程。整个ingress-controller是怎么工作的。并不会详细的去解释所有的代码。找到关键节点即可。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Nginx-Ingress-Controller 代码走读">
+<meta property="og:url" content="https://zou.cool/2021/11/24/ingress-nginx-read/index.html">
+<meta property="og:site_name" content="邹扒皮实验室">
+<meta property="og:description" content="简介nginx-ingress-controller 是最常用的 ingress-controller 之一，也是当前公司生产在使用的ingress。这边会分析主流程。整个ingress-controller是怎么工作的。并不会详细的去解释所有的代码。找到关键节点即可。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/ingress/nginx-ingress-read/01.png">
+<meta property="article:published_time" content="2021-11-23T16:00:00.000Z">
+<meta property="article:modified_time" content="2021-11-25T02:08:55.337Z">
+<meta property="article:author" content="phantooom">
+<meta property="article:tag" content="kubernetes">
+<meta property="article:tag" content="ingress">
+<meta property="article:tag" content="网络">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://cdn.jsdelivr.net/gh/phantooom/image-box/ingress/nginx-ingress-read/01.png">
+
+<link rel="canonical" href="https://zou.cool/2021/11/24/ingress-nginx-read/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Nginx-Ingress-Controller 代码走读 | 邹扒皮实验室</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">邹扒皮实验室</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">胆小怕事,愤而删库</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://zou.cool/2021/11/24/ingress-nginx-read/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/head.jpeg">
+      <meta itemprop="name" content="phantooom">
+      <meta itemprop="description" content="专业系统研(yun)究(wei)者">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="邹扒皮实验室">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Nginx-Ingress-Controller 代码走读
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2021-11-24 00:00:00" itemprop="dateCreated datePublished" datetime="2021-11-24T00:00:00+08:00">2021-11-24</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2021-11-25 10:08:55" itemprop="dateModified" datetime="2021-11-25T10:08:55+08:00">2021-11-25</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/kubernetes/" itemprop="url" rel="index"><span itemprop="name">kubernetes</span></a>
+                </span>
+                  ，
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/kubernetes/ingress/" itemprop="url" rel="index"><span itemprop="name">ingress</span></a>
+                </span>
+            </span>
+
+          
+  
+  <span class="post-meta-item">
+    
+      <span class="post-meta-item-icon">
+        <i class="far fa-comment"></i>
+      </span>
+      <span class="post-meta-item-text">Disqus：</span>
+    
+    <a title="disqus" href="/2021/11/24/ingress-nginx-read/#disqus_thread" itemprop="discussionUrl">
+      <span class="post-comments-count disqus-comment-count" data-disqus-identifier="2021/11/24/ingress-nginx-read/" itemprop="commentCount"></span>
+    </a>
+  </span>
+  
+  <br>
+            <span class="post-meta-item" title="本文字数">
+              <span class="post-meta-item-icon">
+                <i class="far fa-file-word"></i>
+              </span>
+                <span class="post-meta-item-text">本文字数：</span>
+              <span>21k</span>
+            </span>
+            <span class="post-meta-item" title="阅读时长">
+              <span class="post-meta-item-icon">
+                <i class="far fa-clock"></i>
+              </span>
+                <span class="post-meta-item-text">阅读时长 &asymp;</span>
+              <span>1:26</span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p><a name="t3Nbo"></a></p>
+<h1 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h1><p>nginx-ingress-controller 是最常用的 ingress-controller 之一，也是当前公司生产在使用的ingress。这边会分析主流程。整个ingress-controller是怎么工作的。并不会详细的去解释所有的代码。找到关键节点即可。<br /></p>
+<span id="more"></span>
+
+<p><a name="ZJflU"></a></p>
+<h1 id="整体流程"><a href="#整体流程" class="headerlink" title="整体流程"></a>整体流程</h1><p><img src="https://cdn.jsdelivr.net/gh/phantooom/image-box/ingress/nginx-ingress-read/01.png" alt="nginx-ingress流程.png"><br /></p>
+<p><a name="cBg2r"></a></p>
+<h1 id="代码实现"><a href="#代码实现" class="headerlink" title="代码实现"></a>代码实现</h1><p><a name="VUkQm"></a></p>
+<h2 id="go部分"><a href="#go部分" class="headerlink" title="go部分"></a>go部分</h2><p><a name="AWKCb"></a></p>
+<h3 id="入口函数"><a href="#入口函数" class="headerlink" title="入口函数"></a>入口函数</h3><p>通过构建脚本我们可以发现入口是/cmd/nginx</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// build/build.sh</span></span><br><span class="line"><span class="keyword">go</span> build \</span><br><span class="line">  -trimpath -ldflags=<span class="string">&quot;-buildid= -w -s \</span></span><br><span class="line"><span class="string">    -X $&#123;PKG&#125;/version.RELEASE=$&#123;TAG&#125; \</span></span><br><span class="line"><span class="string">    -X $&#123;PKG&#125;/version.COMMIT=$&#123;COMMIT_SHA&#125; \</span></span><br><span class="line"><span class="string">    -X $&#123;PKG&#125;/version.REPO=$&#123;REPO_INFO&#125;&quot;</span> \</span><br><span class="line">  -o <span class="string">&quot;rootfs/bin/$&#123;ARCH&#125;/nginx-ingress-controller&quot;</span> <span class="string">&quot;$&#123;PKG&#125;/cmd/nginx&quot;</span></span><br></pre></td></tr></table></figure>
+<p><a name="FV3Ej"></a></p>
+<h3 id="初始化"><a href="#初始化" class="headerlink" title="初始化"></a>初始化</h3><p>初始化的过程中会初始化  NGINXController  结构如下</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// internal/ingress/controller/nginx.go</span></span><br><span class="line"><span class="keyword">type</span> NGINXController <span class="keyword">struct</span> &#123;</span><br><span class="line">    <span class="comment">// 这个结构体主要是一些配置相关的，如tcp/udp配置的map， apiserver地址，同步时间监听端口等</span></span><br><span class="line">	cfg *Configuration</span><br><span class="line">	<span class="comment">// recoder是用来记录一些事件的比如reload等</span></span><br><span class="line">	recorder record.EventRecorder</span><br><span class="line">	<span class="comment">// 一个work queue 用来同步状态比如ingress的资源的信息会被放到这里</span></span><br><span class="line">	syncQueue *task.Queue</span><br><span class="line">	<span class="comment">// 用来同步ingress的状态的</span></span><br><span class="line">	syncStatus status.Syncer</span><br><span class="line">	<span class="comment">// 用来限流的</span></span><br><span class="line">	syncRateLimiter flowcontrol.RateLimiter</span><br><span class="line"></span><br><span class="line">	<span class="comment">// stopLock is used to enforce that only a single call to Stop send at</span></span><br><span class="line">	<span class="comment">// a given time. We allow stopping through an HTTP endpoint and</span></span><br><span class="line">	<span class="comment">// allowing concurrent stoppers leads to stack traces.</span></span><br><span class="line">	stopLock *sync.Mutex</span><br><span class="line">	<span class="comment">// 停止的channel 用来传输stop的信息，实现优雅的关闭</span></span><br><span class="line">	stopCh   <span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;</span><br><span class="line">    <span class="comment">// k8s store有更新的时候这个会收到消息</span></span><br><span class="line">	updateCh *channels.RingChannel</span><br><span class="line"></span><br><span class="line">	<span class="comment">// ngxErrCh is used to detect errors with the NGINX processes</span></span><br><span class="line">	ngxErrCh <span class="keyword">chan</span> error</span><br><span class="line">    </span><br><span class="line">	<span class="comment">// runningConfig contains the running configuration in the Backend</span></span><br><span class="line">	runningConfig *ingress.Configuration</span><br><span class="line">	<span class="comment">// 存储 nginx的模板</span></span><br><span class="line">	t ngx_template.Writer</span><br><span class="line">	<span class="comment">// 域名解析的 dns服务器</span></span><br><span class="line">	resolver []net.IP</span><br><span class="line">	<span class="comment">// 是否开启ipv6</span></span><br><span class="line">	isIPV6Enabled <span class="keyword">bool</span></span><br><span class="line">	<span class="comment">// 是否处于关闭中的状态</span></span><br><span class="line">	isShuttingDown <span class="keyword">bool</span></span><br><span class="line">	<span class="comment">// tcp proxy的表</span></span><br><span class="line">	Proxy *TCPProxy</span><br><span class="line">	<span class="comment">// 存储ingress信息的store</span></span><br><span class="line">	store store.Storer</span><br><span class="line">	<span class="comment">// 指标记录使用</span></span><br><span class="line">	metricCollector metric.Collector</span><br><span class="line">	<span class="comment">// webhook server的信息</span></span><br><span class="line">	validationWebhookServer *http.Server</span><br><span class="line">	<span class="comment">// 执行命令的包装</span></span><br><span class="line">	command NginxExecTester</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>接下来初始化store这个主要是初始化了各种lister,infromer以及eventhandler</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// internal/ingress/controller/store/store.go</span></span><br><span class="line"><span class="comment">// 初始化不同版本的ingress ep secret cm svc等</span></span><br><span class="line">	store.informers.Ingress = infFactory.Networking().V1beta1().Ingresses().Informer()</span><br><span class="line">	store.listers.Ingress.Store = store.informers.Ingress.GetStore()</span><br><span class="line"></span><br><span class="line">	store.informers.Endpoint = infFactory.Core().V1().Endpoints().Informer()</span><br><span class="line">	store.listers.Endpoint.Store = store.informers.Endpoint.GetStore()</span><br><span class="line"></span><br><span class="line">	store.informers.Secret = infFactorySecrets.Core().V1().Secrets().Informer()</span><br><span class="line">	store.listers.Secret.Store = store.informers.Secret.GetStore()</span><br><span class="line"></span><br><span class="line">	store.informers.ConfigMap = infFactoryConfigmaps.Core().V1().ConfigMaps().Informer()</span><br><span class="line">	store.listers.ConfigMap.Store = store.informers.ConfigMap.GetStore()</span><br><span class="line"></span><br><span class="line">	store.informers.Service = infFactory.Core().V1().Services().Informer()</span><br><span class="line">	store.listers.Service.Store = store.informers.Service.GetStore()</span><br><span class="line"><span class="comment">// 初始化不同的回调函数</span></span><br><span class="line"></span><br><span class="line">	store.informers.Ingress.AddEventHandler(ingEventHandler)</span><br><span class="line">	store.informers.Endpoint.AddEventHandler(epEventHandler)</span><br><span class="line">	store.informers.Secret.AddEventHandler(secrEventHandler)</span><br><span class="line">	store.informers.ConfigMap.AddEventHandler(cmEventHandler)</span><br><span class="line">	store.informers.Service.AddEventHandler(serviceHandler)</span><br></pre></td></tr></table></figure>
+<p>接下来初始化taskQueue,这个Queue里面的任务会被消费，每次消费都会全量的刷新ingress的配置。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//internal/ingress/controller/nginx.go</span></span><br><span class="line"><span class="comment">// 注意关注下这个syncIngress的func后边会详细介绍</span></span><br><span class="line">n.syncQueue = task.NewTaskQueue(n.syncIngress)</span><br></pre></td></tr></table></figure>
+<p>初始化nginx-tmpl的配置，然后注册nginx-tmpl变更的回调，变更后会重新渲染配置然后reload nginx</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//internal/ingress/controller/nginx.go</span></span><br><span class="line"><span class="comment">// 删除了部分不相关代码</span></span><br><span class="line">onTemplateChange := func() &#123;</span><br><span class="line">		<span class="keyword">template</span>, err := ngx_template.NewTemplate(nginx.TemplatePath)</span><br><span class="line">		n.t = <span class="keyword">template</span></span><br><span class="line">		n.syncQueue.EnqueueTask(task.GetDummyObject(<span class="string">&quot;template-change&quot;</span>))</span><br><span class="line">&#125;</span><br><span class="line">ngxTpl, err := ngx_template.NewTemplate(nginx.TemplatePath)</span><br><span class="line">n.t = ngxTpl</span><br><span class="line">_, err = watch.NewFileWatcher(nginx.TemplatePath, onTemplateChange)</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+<p>启动controller</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//internal/ingress/controller/nginx.go</span></span><br><span class="line">func (n *NGINXController) Start() &#123;</span><br><span class="line">    <span class="comment">// 启动informer</span></span><br><span class="line">	n.store.Run(n.stopCh)</span><br><span class="line"><span class="comment">// 选举</span></span><br><span class="line">	setupLeaderElection(&amp;leaderElectionConfig&#123;</span><br><span class="line">		Client:     n.cfg.Client,</span><br><span class="line">		ElectionID: electionID,</span><br><span class="line">        <span class="comment">// 只有leader才会执行</span></span><br><span class="line">		OnStartedLeading: func(stopCh chan struct&#123;&#125;) &#123;</span><br><span class="line">			<span class="keyword">if</span> n.syncStatus != nil &#123;</span><br><span class="line">				go n.syncStatus.Run(stopCh)</span><br><span class="line">			&#125;</span><br><span class="line">			</span><br><span class="line">			n.metricCollector.OnStartedLeading(electionID)</span><br><span class="line">			<span class="comment">// manually update SSL expiration metrics</span></span><br><span class="line">			<span class="comment">// (to not wait for a reload)</span></span><br><span class="line">			n.metricCollector.SetSSLExpireTime(n.runningConfig.Servers)</span><br><span class="line">		&#125;,</span><br><span class="line">        <span class="comment">// 都会执行选举结束就会执行</span></span><br><span class="line">		OnStoppedLeading: func() &#123;</span><br><span class="line">			n.metricCollector.OnStoppedLeading(electionID)</span><br><span class="line">		&#125;,</span><br><span class="line">	&#125;)</span><br><span class="line">	<span class="comment">// 启动nginx的命令</span></span><br><span class="line">	cmd := n.command.ExecCommand()</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 启动配置 PGID为0,表示新建一个子进程，防止NGINX进程收到controller的信号</span></span><br><span class="line">	cmd.SysProcAttr = &amp;syscall.SysProcAttr&#123;</span><br><span class="line">		Setpgid: <span class="literal">true</span>,</span><br><span class="line">		Pgid:    <span class="number">0</span>,</span><br><span class="line">	&#125;</span><br><span class="line">	启动nginx</span><br><span class="line">	n.start(cmd)</span><br><span class="line">	<span class="comment">// 启动worker，从worker中不断获取任务会经过之前提到的 n.syncIngress 进行处理后面会解释</span></span><br><span class="line">	go n.syncQueue.Run(time.Second, n.stopCh)</span><br><span class="line"></span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		select &#123;</span><br><span class="line">        <span class="comment">// 获取异常信息，不重要略过</span></span><br><span class="line">		<span class="keyword">case</span> err := &lt;-n.ngxErrCh:</span><br><span class="line"></span><br><span class="line">		<span class="keyword">case</span> event := &lt;-n.updateCh.Out():</span><br><span class="line">			<span class="keyword">if</span> evt, ok := event.(store.Event); ok &#123;</span><br><span class="line">                <span class="comment">// 将n.updateCh中获取的event放入工作队列中</span></span><br><span class="line">				n.syncQueue.EnqueueSkippableTask(evt.Obj)</span><br><span class="line">			&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">				klog.Warningf(<span class="string">&quot;Unexpected event type received %T&quot;</span>, event)</span><br><span class="line">			&#125;</span><br><span class="line">        <span class="comment">// 获取stop的信息不重要略过</span></span><br><span class="line">		<span class="keyword">case</span> &lt;-n.stopCh:</span><br><span class="line">			<span class="keyword">return</span></span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p><a name="nnY16"></a></p>
+<h3 id="deltafifo消费"><a href="#deltafifo消费" class="headerlink" title="deltafifo消费"></a>deltafifo消费</h3><p>启动informer之后，注册到informer的eventhandler中的回调函数，会在deltafifo消费的过程中被执行。<br />也就是说意味着有 ingress,ep,cm,svc,secret 相关的资源变动会执行对应的处理函数。只看主要流程也就是ingress&amp;svc,&amp;ep资源本身的变动。暂时忽略cm跟secret的变动。<br><a name="OWyP4"></a></p>
+<h3 id="Ingress"><a href="#Ingress" class="headerlink" title="Ingress"></a>Ingress</h3><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//internal/ingress/controller/store/store.go</span></span><br><span class="line"></span><br><span class="line">ingEventHandler := cache.ResourceEventHandlerFuncs&#123;</span><br><span class="line">		AddFunc: <span class="function"><span class="keyword">func</span><span class="params">(obj <span class="keyword">interface</span>&#123;&#125;)</span></span> &#123;</span><br><span class="line">			ing, _ := toIngress(obj)</span><br><span class="line">            <span class="comment">// 记录事件</span></span><br><span class="line">			recorder.Eventf(ing, corev1.EventTypeNormal, <span class="string">&quot;Sync&quot;</span>, <span class="string">&quot;Scheduled for sync&quot;</span>)</span><br><span class="line">			<span class="comment">// 将annoation的字段转换成一个 annotations.Ingress 对象，并且更新一下lister</span></span><br><span class="line">			store.syncIngress(ing)</span><br><span class="line">			<span class="comment">// 创建一个事件放入 updateCh channel中，后面会被消费放入工作队列。这个消费的循环在上边提到过。</span></span><br><span class="line">			updateCh.In() &lt;- Event&#123;</span><br><span class="line">				Type: CreateEvent,</span><br><span class="line">				Obj:  obj,</span><br><span class="line">			&#125;</span><br><span class="line">		&#125;,</span><br><span class="line">    	<span class="comment">// 这个函数比较大，后面写了分析。</span></span><br><span class="line">		DeleteFunc: ingDeleteHandler,</span><br><span class="line">		UpdateFunc: <span class="function"><span class="keyword">func</span><span class="params">(old, cur <span class="keyword">interface</span>&#123;&#125;)</span></span> &#123;</span><br><span class="line">			oldIng, _ := toIngress(old)</span><br><span class="line">			curIng, _ := toIngress(cur)</span><br><span class="line"></span><br><span class="line">			validOld := class.IsValid(oldIng)</span><br><span class="line">			validCur := class.IsValid(curIng)</span><br><span class="line">			<span class="keyword">if</span> validOld &amp;&amp; !validCur &#123;</span><br><span class="line">				klog.InfoS(<span class="string">&quot;removing ingress&quot;</span>, <span class="string">&quot;ingress&quot;</span>, klog.KObj(curIng), <span class="string">&quot;class&quot;</span>, class.IngressKey)</span><br><span class="line">				<span class="comment">// 新的ingress不合法调用删除旧的直接返回</span></span><br><span class="line">                ingDeleteHandler(old)</span><br><span class="line">				<span class="keyword">return</span></span><br><span class="line">			&#125; <span class="keyword">else</span> <span class="keyword">if</span> validCur &amp;&amp; !reflect.DeepEqual(old, cur) &#123;</span><br><span class="line">				<span class="comment">// 新的合法并且与旧的不同，继续流程</span></span><br><span class="line">				recorder.Eventf(curIng, corev1.EventTypeNormal, <span class="string">&quot;Sync&quot;</span>, <span class="string">&quot;Scheduled for sync&quot;</span>)</span><br><span class="line">			&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                <span class="comment">// 没变化就直接返回</span></span><br><span class="line">				klog.V(<span class="number">3</span>).InfoS(<span class="string">&quot;No changes on ingress. Skipping update&quot;</span>, <span class="string">&quot;ingress&quot;</span>, klog.KObj(curIng))</span><br><span class="line">				<span class="keyword">return</span></span><br><span class="line">			&#125;</span><br><span class="line">			<span class="comment">// 简单来说只新的ingress合法并且与旧的不同就把obj &amp; event扔进channel</span></span><br><span class="line">			store.syncIngress(curIng)</span><br><span class="line">			updateCh.In() &lt;- Event&#123;</span><br><span class="line">				Type: UpdateEvent,</span><br><span class="line">				Obj:  cur,</span><br><span class="line">			&#125;</span><br><span class="line">		&#125;,</span><br><span class="line">	&#125;</span><br><span class="line"><span class="comment">// 上面多次调用过这个函数</span></span><br><span class="line">ingDeleteHandler := <span class="function"><span class="keyword">func</span><span class="params">(obj <span class="keyword">interface</span>&#123;&#125;)</span></span> &#123;</span><br><span class="line">		ing, ok := toIngress(obj)</span><br><span class="line">		<span class="comment">// 从lister中删除这个ingress</span></span><br><span class="line">		store.listers.IngressWithAnnotation.Delete(ing)</span><br><span class="line">		<span class="comment">// 删除这个事件也入队</span></span><br><span class="line">		updateCh.In() &lt;- Event&#123;</span><br><span class="line">			Type: DeleteEvent,</span><br><span class="line">			Obj:  obj,</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br></pre></td></tr></table></figure>
+<p><a name="roEF8"></a></p>
+<h3 id="ep"><a href="#ep" class="headerlink" title="ep"></a>ep</h3><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//internal/ingress/controller/store/store.go</span></span><br><span class="line"><span class="comment">// 这个处理就相对简单很多直接入队就好了不用做任何复杂的转换</span></span><br><span class="line">epEventHandler := cache.ResourceEventHandlerFuncs&#123;</span><br><span class="line">	AddFunc: <span class="function"><span class="keyword">func</span><span class="params">(obj <span class="keyword">interface</span>&#123;&#125;)</span></span> &#123;</span><br><span class="line">		updateCh.In() &lt;- Event&#123;</span><br><span class="line">			Type: CreateEvent,</span><br><span class="line">			Obj:  obj,</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;,</span><br><span class="line">	DeleteFunc: <span class="function"><span class="keyword">func</span><span class="params">(obj <span class="keyword">interface</span>&#123;&#125;)</span></span> &#123;</span><br><span class="line">		updateCh.In() &lt;- Event&#123;</span><br><span class="line">			Type: DeleteEvent,</span><br><span class="line">			Obj:  obj,</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;,</span><br><span class="line">	UpdateFunc: <span class="function"><span class="keyword">func</span><span class="params">(old, cur <span class="keyword">interface</span>&#123;&#125;)</span></span> &#123;</span><br><span class="line">		oep := old.(*corev1.Endpoints)</span><br><span class="line">		cep := cur.(*corev1.Endpoints)</span><br><span class="line">		<span class="keyword">if</span> !reflect.DeepEqual(cep.Subsets, oep.Subsets) &#123;</span><br><span class="line">			updateCh.In() &lt;- Event&#123;</span><br><span class="line">				Type: UpdateEvent,</span><br><span class="line">				Obj:  cur,</span><br><span class="line">			&#125;</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;,</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p><a name="bnGsB"></a></p>
+<h3 id="service"><a href="#service" class="headerlink" title="service"></a>service</h3><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//internal/ingress/controller/store/store.go</span></span><br><span class="line"><span class="comment">//  这个处理更简单，只处理update的情况</span></span><br><span class="line">serviceHandler := cache.ResourceEventHandlerFuncs&#123;</span><br><span class="line">	UpdateFunc: <span class="function"><span class="keyword">func</span><span class="params">(old, cur <span class="keyword">interface</span>&#123;&#125;)</span></span> &#123;</span><br><span class="line">		oldSvc := old.(*corev1.Service)</span><br><span class="line">		curSvc := cur.(*corev1.Service)</span><br><span class="line"></span><br><span class="line">		<span class="keyword">if</span> reflect.DeepEqual(oldSvc, curSvc) &#123;</span><br><span class="line">			<span class="keyword">return</span></span><br><span class="line">		&#125;</span><br><span class="line"></span><br><span class="line">		updateCh.In() &lt;- Event&#123;</span><br><span class="line">			Type: UpdateEvent,</span><br><span class="line">			Obj:  cur,</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;,</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p><a name="f9913"></a></p>
+<h3 id="workerQueue消费"><a href="#workerQueue消费" class="headerlink" title="workerQueue消费"></a>workerQueue消费</h3><p>infromer注册的handler会把变更事件丢到 updateCh 中，我们在start流程中，启动了一个for循环去获取这个updateCh中的事件，然后放入workerQueue中。同时我们也启动了一个gorountine 去消费workerQueue中的数据。我们接下来就去分析这个消费过程。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//internal/ingress/controller/nginx.go</span></span><br><span class="line"><span class="comment">// 这个启动了消费的gorountine。</span></span><br><span class="line"><span class="keyword">go</span> n.syncQueue.Run(time.Second, n.stopCh)</span><br><span class="line"><span class="comment">//相应的消费函数是如下</span></span><br><span class="line"><span class="comment">// internal/task/queue.go</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(t *Queue)</span> <span class="title">worker</span><span class="params">()</span></span> &#123;</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">        <span class="comment">// 这个get能获取到队列中的一个数据，但是不会删除</span></span><br><span class="line">		key, quit := t.queue.Get()</span><br><span class="line">		ts := time.Now().UnixNano()</span><br><span class="line">		item := key.(Element)</span><br><span class="line">        <span class="comment">// 如果上次的同步时间要比 event的时间要新的话跳过更新</span></span><br><span class="line">		<span class="keyword">if</span> t.lastSync &gt; item.Timestamp &#123;</span><br><span class="line">			<span class="comment">// 抛弃该元素，不再进行重试</span></span><br><span class="line">            t.queue.Forget(key)</span><br><span class="line">            <span class="comment">// get 不会删除，这个done会真正的把元素删除</span></span><br><span class="line">			t.queue.Done(key)</span><br><span class="line">			<span class="keyword">continue</span></span><br><span class="line">		&#125;</span><br><span class="line">        <span class="comment">// 使用sync函数进行同步，这个我们下边分析，是整个流程的主体。 n.syncIngress()</span></span><br><span class="line">		<span class="keyword">if</span> err := t.sync(key); err != <span class="literal">nil</span> &#123;</span><br><span class="line">			klog.ErrorS(err, <span class="string">&quot;requeuing&quot;</span>, <span class="string">&quot;key&quot;</span>, item.Key)</span><br><span class="line">			<span class="comment">// 同步有问题，扔回到队列里。</span></span><br><span class="line">            t.queue.AddRateLimited(Element&#123;</span><br><span class="line">				Key:       item.Key,</span><br><span class="line">				Timestamp: time.Now().UnixNano(),</span><br><span class="line">			&#125;)</span><br><span class="line">		&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="comment">// 同步成功，抛弃该元素</span></span><br><span class="line">			t.queue.Forget(key)</span><br><span class="line">            <span class="comment">// 记录一下上次同步成功的时间</span></span><br><span class="line">			t.lastSync = ts</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="comment">// 把这个元素从队列中删除，不管成功与否都删除，失败的时候已经重新扔回队列了。</span></span><br><span class="line">		t.queue.Done(key)</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>​</p>
+<p>syncIngress函数分析，我们先分析流程，然后层层深入具体的函数实现。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br></pre></td><td class="code"><pre><span class="line">//internal/ingress/controller/controller.go</span><br><span class="line">func (n *NGINXController) syncIngress(interface&#123;&#125;) error &#123;</span><br><span class="line">	// 获取token，获取不到时会阻塞</span><br><span class="line">	n.syncRateLimiter.Accept()</span><br><span class="line">	// 获取所有ingress资源</span><br><span class="line">	ings := n.store.ListIngresses()</span><br><span class="line">	hosts, servers, pcfg := n.getConfiguration(ings)</span><br><span class="line">	// 配置没有变动直接返回</span><br><span class="line">	if n.runningConfig.Equal(pcfg) &#123;</span><br><span class="line">		klog.V(3).Infof(&quot;No configuration change detected, skipping backend reload&quot;)</span><br><span class="line">		return nil</span><br><span class="line">	&#125;</span><br><span class="line">	// 判断配是否需要nginx reload</span><br><span class="line">	if !n.IsDynamicConfigurationEnough(pcfg) &#123;</span><br><span class="line">		klog.InfoS(&quot;Configuration changes detected, backend reload required&quot;)</span><br><span class="line"></span><br><span class="line">		hash, _ := hashstructure.Hash(pcfg, &amp;hashstructure.HashOptions&#123;</span><br><span class="line">			TagName: &quot;json&quot;,</span><br><span class="line">		&#125;)</span><br><span class="line"></span><br><span class="line">		pcfg.ConfigurationChecksum = fmt.Sprintf(&quot;%v&quot;, hash)</span><br><span class="line">		// 有变动之后使用新的配置，渲染配置文件然后nginx -s reload</span><br><span class="line">		err := n.OnUpdate(*pcfg)</span><br><span class="line">		&#125;</span><br><span class="line"></span><br><span class="line">	isFirstSync := n.runningConfig.Equal(&amp;ingress.Configuration&#123;&#125;)</span><br><span class="line">  // 第一次更新先sleep一会等nginx启动</span><br><span class="line">	if isFirstSync &#123;</span><br><span class="line">		// For the initial sync it always takes some time for NGINX to start listening</span><br><span class="line">		// For large configurations it might take a while so we loop and back off</span><br><span class="line">		klog.InfoS(&quot;Initial sync, sleeping for 1 second&quot;)</span><br><span class="line">		time.Sleep(1 * time.Second)</span><br><span class="line">	&#125;</span><br><span class="line">	// 等待成功</span><br><span class="line">	err := wait.ExponentialBackoff(retry, func() (bool, error) &#123;</span><br><span class="line">  	// 动态配置更新,主要是将数据信息注册到nginx-lua中供负载均衡使用。</span><br><span class="line">		err := n.configureDynamically(pcfg)</span><br><span class="line">		if err == nil &#123;</span><br><span class="line">			klog.V(2).Infof(&quot;Dynamic reconfiguration succeeded.&quot;)</span><br><span class="line">			return true, nil</span><br><span class="line">		&#125;</span><br><span class="line">		return false, err</span><br><span class="line">	&#125;)</span><br><span class="line"></span><br><span class="line">	n.runningConfig = pcfg</span><br><span class="line"></span><br><span class="line">	return nil</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>configureDynamically 这个函数主要是配置nginx-lua模块需要的一些信息，供负载均衡使用。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line">// internal/ingress/controller/nginx.go</span><br><span class="line">func (n *NGINXController) configureDynamically(pcfg *ingress.Configuration) error &#123;</span><br><span class="line">	//	判断是否发生变化</span><br><span class="line">	backendsChanged := !reflect.DeepEqual(n.runningConfig.Backends, pcfg.Backends)</span><br><span class="line">	if backendsChanged &#123;</span><br><span class="line">  	// 变化就配置一下backend的信息</span><br><span class="line">		err := configureBackends(pcfg.Backends)</span><br><span class="line">		if err != nil &#123;</span><br><span class="line">			return err</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	return nil</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">func configureBackends(rawBackends []*ingress.Backend) error &#123;</span><br><span class="line">	backends := make([]*ingress.Backend, len(rawBackends))</span><br><span class="line">	// 省略处理格式的函数</span><br><span class="line">  // 这里调用了nginx-lua提供的api把信息发送到nginx-lua,然后供负载均衡使用</span><br><span class="line">	statusCode, _, err := nginx.NewPostStatusRequest(&quot;/configuration/backends&quot;, &quot;application/json&quot;, backends)</span><br><span class="line">	if err != nil &#123;</span><br><span class="line">		return err</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	return nil</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>​<br /><br><a name="tfluE"></a></p>
+<h2 id="lua部分"><a href="#lua部分" class="headerlink" title="lua部分"></a>lua部分</h2><p><a name="oyzUi"></a></p>
+<h3 id="测试用例"><a href="#测试用例" class="headerlink" title="测试用例"></a>测试用例</h3><p><a target="_blank" rel="noopener" href="https://github.com/phantooom/k8s-valid-demo/tree/main/nginx-ingress-canary">https://github.com/phantooom/k8s-valid-demo/tree/main/nginx-ingress-canary</a></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br></pre></td><td class="code"><pre><span class="line">apiVersion: v1</span><br><span class="line">kind: Service</span><br><span class="line">metadata:</span><br><span class="line">  name: service-v1</span><br><span class="line">spec:</span><br><span class="line">  selector:</span><br><span class="line">    app: v1</span><br><span class="line">  ports:</span><br><span class="line">    - protocol: TCP</span><br><span class="line">      port: 8080</span><br><span class="line">      targetPort: 8080</span><br><span class="line">--</span><br><span class="line">apiVersion: v1</span><br><span class="line">kind: Service</span><br><span class="line">metadata:</span><br><span class="line">  name: service-v2</span><br><span class="line">spec:</span><br><span class="line">  selector:</span><br><span class="line">    app: v2</span><br><span class="line">  ports:</span><br><span class="line">    - protocol: TCP</span><br><span class="line">      port: 8080</span><br><span class="line">      targetPort: 8080</span><br><span class="line">--</span><br><span class="line">apiVersion: extensions/v1beta1</span><br><span class="line">kind: Ingress</span><br><span class="line">metadata:</span><br><span class="line">  name: ingress-v1</span><br><span class="line">spec:</span><br><span class="line">  rules:</span><br><span class="line">  - host: canary.test.com</span><br><span class="line">    http:</span><br><span class="line">      paths:</span><br><span class="line">      - backend:</span><br><span class="line">          serviceName: service-v1</span><br><span class="line">          servicePort: 8080</span><br><span class="line">        path: /</span><br><span class="line">--</span><br><span class="line">apiVersion: extensions/v1beta1</span><br><span class="line">kind: Ingress</span><br><span class="line">metadata:</span><br><span class="line">  annotations:</span><br><span class="line">    nginx.ingress.kubernetes.io/canary: &quot;true&quot;</span><br><span class="line">    nginx.ingress.kubernetes.io/canary-weight: &quot;50&quot;</span><br><span class="line">  name: ingress-v2</span><br><span class="line">spec:</span><br><span class="line">  rules:</span><br><span class="line">  - host: canary.test.com</span><br><span class="line">    http:</span><br><span class="line">      paths:</span><br><span class="line">      - backend:</span><br><span class="line">          serviceName: service-v2</span><br><span class="line">          servicePort: 8080</span><br><span class="line">        path: /</span><br></pre></td></tr></table></figure>
+
+
+<p><a name="Uc6RN"></a></p>
+<h3 id="configuration-backends-接口"><a href="#configuration-backends-接口" class="headerlink" title="/configuration/backends 接口"></a>/configuration/backends 接口</h3><p>这个接口是直接go部分会直接调用的。我们看下实现</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line">// rootfs/etc/nginx/lua/configuration.lua</span><br><span class="line">function _M.call()</span><br><span class="line">	// 这里是处理 /configuration/backends的部分，转到了 handle_backends 方法处理</span><br><span class="line">  if ngx.var.request_uri == &quot;/configuration/backends&quot; then</span><br><span class="line">    handle_backends()</span><br><span class="line">    return</span><br><span class="line">  end</span><br><span class="line">end</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">local function handle_backends()</span><br><span class="line">	// 取得请求的body</span><br><span class="line">  local backends = fetch_request_body()</span><br><span class="line">  // 放到 configuration_data 这个里面</span><br><span class="line">  local success, err = configuration_data:set(&quot;backends&quot;, backends)</span><br><span class="line">  </span><br><span class="line">  ngx.update_time()</span><br><span class="line">  local raw_backends_last_synced_at = ngx.time()</span><br><span class="line">  // 记录更新时间</span><br><span class="line">  success, err = configuration_data:set(&quot;raw_backends_last_synced_at&quot;, raw_backends_last_synced_at)</span><br><span class="line">  ngx.status = ngx.HTTP_CREATED</span><br><span class="line">end</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br></pre></td><td class="code"><pre><span class="line">// 这是存储的数据结构</span><br><span class="line">[&#123;</span><br><span class="line">	&quot;name&quot;: &quot;default-service-v1-8080&quot;,</span><br><span class="line">	&quot;service&quot;: &#123;</span><br><span class="line">		&quot;metadata&quot;: &#123;</span><br><span class="line">			&quot;creationTimestamp&quot;: null</span><br><span class="line">		&#125;,</span><br><span class="line">		&quot;spec&quot;: &#123;</span><br><span class="line">			&quot;ports&quot;: [&#123;</span><br><span class="line">				&quot;protocol&quot;: &quot;TCP&quot;,</span><br><span class="line">				&quot;port&quot;: 8080,</span><br><span class="line">				&quot;targetPort&quot;: 8080</span><br><span class="line">			&#125;],</span><br><span class="line">			&quot;selector&quot;: &#123;</span><br><span class="line">				&quot;app&quot;: &quot;v1&quot;</span><br><span class="line">			&#125;,</span><br><span class="line">			&quot;clusterIP&quot;: &quot;192.168.7.57&quot;,</span><br><span class="line">			&quot;type&quot;: &quot;ClusterIP&quot;,</span><br><span class="line">			&quot;sessionAffinity&quot;: &quot;None&quot;</span><br><span class="line">		&#125;,</span><br><span class="line">		&quot;status&quot;: &#123;</span><br><span class="line">			&quot;loadBalancer&quot;: &#123;&#125;</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;,</span><br><span class="line">	&quot;port&quot;: 8080,</span><br><span class="line">	&quot;sslPassthrough&quot;: false,</span><br><span class="line">	&quot;endpoints&quot;: [&#123;</span><br><span class="line">		&quot;address&quot;: &quot;10.128.32.53&quot;,</span><br><span class="line">		&quot;port&quot;: &quot;8080&quot;</span><br><span class="line">	&#125;],</span><br><span class="line">	&quot;sessionAffinityConfig&quot;: &#123;</span><br><span class="line">		&quot;name&quot;: &quot;&quot;,</span><br><span class="line">		&quot;mode&quot;: &quot;&quot;,</span><br><span class="line">		&quot;cookieSessionAffinity&quot;: &#123;</span><br><span class="line">			&quot;name&quot;: &quot;&quot;</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;,</span><br><span class="line">	&quot;upstreamHashByConfig&quot;: &#123;</span><br><span class="line">		&quot;upstream-hash-by-subset-size&quot;: 3</span><br><span class="line">	&#125;,</span><br><span class="line">	&quot;noServer&quot;: false,</span><br><span class="line">	&quot;trafficShapingPolicy&quot;: &#123;</span><br><span class="line">		&quot;weight&quot;: 0,</span><br><span class="line">		&quot;header&quot;: &quot;&quot;,</span><br><span class="line">		&quot;headerValue&quot;: &quot;&quot;,</span><br><span class="line">		&quot;headerPattern&quot;: &quot;&quot;,</span><br><span class="line">		&quot;cookie&quot;: &quot;&quot;</span><br><span class="line">	&#125;,</span><br><span class="line">	&quot;alternativeBackends&quot;: [&quot;default-service-v2-8080&quot;]</span><br><span class="line">&#125;, &#123;</span><br><span class="line">	&quot;name&quot;: &quot;default-service-v2-8080&quot;,</span><br><span class="line">	&quot;service&quot;: &#123;</span><br><span class="line">		&quot;metadata&quot;: &#123;</span><br><span class="line">			&quot;creationTimestamp&quot;: null</span><br><span class="line">		&#125;,</span><br><span class="line">		&quot;spec&quot;: &#123;</span><br><span class="line">			&quot;ports&quot;: [&#123;</span><br><span class="line">				&quot;protocol&quot;: &quot;TCP&quot;,</span><br><span class="line">				&quot;port&quot;: 8080,</span><br><span class="line">				&quot;targetPort&quot;: 8080</span><br><span class="line">			&#125;],</span><br><span class="line">			&quot;selector&quot;: &#123;</span><br><span class="line">				&quot;app&quot;: &quot;v2&quot;</span><br><span class="line">			&#125;,</span><br><span class="line">			&quot;clusterIP&quot;: &quot;192.168.1.120&quot;,</span><br><span class="line">			&quot;type&quot;: &quot;ClusterIP&quot;,</span><br><span class="line">			&quot;sessionAffinity&quot;: &quot;None&quot;</span><br><span class="line">		&#125;,</span><br><span class="line">		&quot;status&quot;: &#123;</span><br><span class="line">			&quot;loadBalancer&quot;: &#123;&#125;</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;,</span><br><span class="line">	&quot;port&quot;: 8080,</span><br><span class="line">	&quot;sslPassthrough&quot;: false,</span><br><span class="line">	&quot;endpoints&quot;: [&#123;</span><br><span class="line">		&quot;address&quot;: &quot;10.128.32.173&quot;,</span><br><span class="line">		&quot;port&quot;: &quot;8080&quot;</span><br><span class="line">	&#125;],</span><br><span class="line">	&quot;sessionAffinityConfig&quot;: &#123;</span><br><span class="line">		&quot;name&quot;: &quot;&quot;,</span><br><span class="line">		&quot;mode&quot;: &quot;&quot;,</span><br><span class="line">		&quot;cookieSessionAffinity&quot;: &#123;</span><br><span class="line">			&quot;name&quot;: &quot;&quot;</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;,</span><br><span class="line">	&quot;upstreamHashByConfig&quot;: &#123;</span><br><span class="line">		&quot;upstream-hash-by-subset-size&quot;: 3</span><br><span class="line">	&#125;,</span><br><span class="line">	&quot;noServer&quot;: true,</span><br><span class="line">	&quot;trafficShapingPolicy&quot;: &#123;</span><br><span class="line">		&quot;weight&quot;: 50,</span><br><span class="line">		&quot;header&quot;: &quot;&quot;,</span><br><span class="line">		&quot;headerValue&quot;: &quot;&quot;,</span><br><span class="line">		&quot;headerPattern&quot;: &quot;&quot;,</span><br><span class="line">		&quot;cookie&quot;: &quot;&quot;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;, &#123;</span><br><span class="line">	&quot;name&quot;: &quot;upstream-default-backend&quot;,</span><br><span class="line">	&quot;port&quot;: 0,</span><br><span class="line">	&quot;sslPassthrough&quot;: false,</span><br><span class="line">	&quot;endpoints&quot;: [&#123;</span><br><span class="line">		&quot;address&quot;: &quot;127.0.0.1&quot;,</span><br><span class="line">		&quot;port&quot;: &quot;8181&quot;</span><br><span class="line">	&#125;],</span><br><span class="line">	&quot;sessionAffinityConfig&quot;: &#123;</span><br><span class="line">		&quot;name&quot;: &quot;&quot;,</span><br><span class="line">		&quot;mode&quot;: &quot;&quot;,</span><br><span class="line">		&quot;cookieSessionAffinity&quot;: &#123;</span><br><span class="line">			&quot;name&quot;: &quot;&quot;</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;,</span><br><span class="line">	&quot;upstreamHashByConfig&quot;: &#123;&#125;,</span><br><span class="line">	&quot;noServer&quot;: false,</span><br><span class="line">	&quot;trafficShapingPolicy&quot;: &#123;</span><br><span class="line">		&quot;weight&quot;: 0,</span><br><span class="line">		&quot;header&quot;: &quot;&quot;,</span><br><span class="line">		&quot;headerValue&quot;: &quot;&quot;,</span><br><span class="line">		&quot;headerPattern&quot;: &quot;&quot;,</span><br><span class="line">		&quot;cookie&quot;: &quot;&quot;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;]</span><br></pre></td></tr></table></figure>
+<p><a name="mV8pt"></a></p>
+<h3 id="sync-backends-任务"><a href="#sync-backends-任务" class="headerlink" title="sync_backends 任务"></a>sync_backends 任务</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br></pre></td><td class="code"><pre><span class="line">// rootfs/etc/nginx/lua/balancer.lua</span><br><span class="line">// 初始化的时候我们可以看到注册了这个sync_backends函数定期执行</span><br><span class="line">function _M.init_worker()</span><br><span class="line">  sync_backends()</span><br><span class="line">  ok, err = ngx.timer.every(BACKENDS_SYNC_INTERVAL, sync_backends)</span><br><span class="line">end</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">local function sync_backends()</span><br><span class="line">	// 没获取到backend的数据那么 balancers 改成空的dict</span><br><span class="line">  local backends_data = configuration.get_backends_data()</span><br><span class="line">  if not backends_data then</span><br><span class="line">    balancers = &#123;&#125;</span><br><span class="line">    return</span><br><span class="line">  end</span><br><span class="line">	// 解析 backends_data 为json</span><br><span class="line">  local new_backends, err = cjson.decode(backends_data)</span><br><span class="line">  if not new_backends then</span><br><span class="line">    ngx.log(ngx.ERR, &quot;could not parse backends data: &quot;, err)</span><br><span class="line">    return</span><br><span class="line">  end</span><br><span class="line"></span><br><span class="line">  local balancers_to_keep = &#123;&#125;</span><br><span class="line">  // 将新的backend循环放入 balancers_to_keep dict中</span><br><span class="line">  for _, new_backend in ipairs(new_backends) do</span><br><span class="line">  	// 这里主要是判断是否是带有externalname的服务 https://kubernetes.io/docs/concepts/services-networking/service/#externalname</span><br><span class="line">    if is_backend_with_external_name(new_backend) then</span><br><span class="line">      local backend_with_external_name = util.deepcopy(new_backend)</span><br><span class="line">      // 放入 backends_with_external_name 这个dict中</span><br><span class="line">      backends_with_external_name[backend_with_external_name.name] = backend_with_external_name</span><br><span class="line">    else</span><br><span class="line">    	// 将backend放到balancers中，下边会详细分析比较重要。</span><br><span class="line">      sync_backend(new_backend)</span><br><span class="line">    end</span><br><span class="line">    balancers_to_keep[new_backend.name] = true</span><br><span class="line">  end</span><br><span class="line">	// 这个是循环所有的balancers 然后找出过期的内容进行删除</span><br><span class="line">  for backend_name, _ in pairs(balancers) do</span><br><span class="line">    if not balancers_to_keep[backend_name] then</span><br><span class="line">      balancers[backend_name] = nil</span><br><span class="line">      backends_with_external_name[backend_name] = nil</span><br><span class="line">    end</span><br><span class="line">  end</span><br><span class="line">  backends_last_synced_at = raw_backends_last_synced_at</span><br><span class="line">end</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">// 这个方法实际上就是会做的就是将backend 初始化放入 balancers dict中</span><br><span class="line">// 中间会负责把externalname 解析到ip，会配置指定的负载均衡算法</span><br><span class="line">local function sync_backend(backend)</span><br><span class="line">	// 如果是externalname 的形式需要解析成ip</span><br><span class="line">  if is_backend_with_external_name(backend) then</span><br><span class="line">    backend = resolve_external_names(backend)</span><br><span class="line">  end</span><br><span class="line">	// 获取负载均衡的算法，并且初始化相关的实现</span><br><span class="line">  local implementation = get_implementation(backend)</span><br><span class="line">  // 获取老的balancer对象</span><br><span class="line">  local balancer = balancers[backend.name]</span><br><span class="line">	// 不存在就新建</span><br><span class="line">  if not balancer then</span><br><span class="line">    balancers[backend.name] = implementation:new(backend)</span><br><span class="line">    return</span><br><span class="line">  end</span><br><span class="line">	// 不相等的话就证明负载均衡算发变了就重新初始化一下。</span><br><span class="line">  if getmetatable(balancer) ~= implementation then</span><br><span class="line">    ngx.log(ngx.INFO,</span><br><span class="line">        string.format(&quot;LB algorithm changed from %s to %s, resetting the instance&quot;,</span><br><span class="line">                      balancer.name, implementation.name))</span><br><span class="line">    balancers[backend.name] = implementation:new(backend)</span><br><span class="line">    return</span><br><span class="line">  end</span><br><span class="line">	// 调用sync的方法,各个负载均衡可以自己实现也可以用balancer.resty的实现</span><br><span class="line">  // 主要判断endpont是否发生变化，如果发生变化要使用最新的初始化一下。</span><br><span class="line">  balancer:sync(backend)</span><br><span class="line">end</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+
+<p><a name="milzV"></a></p>
+<h3 id="用户访问"><a href="#用户访问" class="headerlink" title="用户访问"></a>用户访问</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line">// rootfs/etc/nginx/template/nginx.tmpl</span><br><span class="line">// 用户的流量到达nginx匹配到对应的location之后proxy_pass 到 upstream_balancer</span><br><span class="line">// 使用balancer.balance()这个方法选择对应的backend</span><br><span class="line">upstream upstream_balancer &#123;</span><br><span class="line">    ### Attention!!!</span><br><span class="line">    #</span><br><span class="line">    # We no longer create &quot;upstream&quot; section for every backend.</span><br><span class="line">    # Backends are handled dynamically using Lua. If you would like to debug</span><br><span class="line">    # and see what backends ingress-nginx has in its memory you can</span><br><span class="line">    # install our kubectl plugin https://kubernetes.github.io/ingress-nginx/kubectl-plugin.</span><br><span class="line">    # Once you have the plugin you can use &quot;kubectl ingress-nginx backends&quot; command to</span><br><span class="line">    # inspect current backends.</span><br><span class="line">    #</span><br><span class="line">    ###</span><br><span class="line"></span><br><span class="line">    server 0.0.0.1; # placeholder</span><br><span class="line"></span><br><span class="line">    balancer_by_lua_block &#123;</span><br><span class="line">      balancer.balance()</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    &#123;&#123; if (gt $cfg.UpstreamKeepaliveConnections 0) &#125;&#125;</span><br><span class="line">    keepalive &#123;&#123; $cfg.UpstreamKeepaliveConnections &#125;&#125;;</span><br><span class="line"></span><br><span class="line">    keepalive_timeout  &#123;&#123; $cfg.UpstreamKeepaliveTimeout &#125;&#125;s;</span><br><span class="line">    keepalive_requests &#123;&#123; $cfg.UpstreamKeepaliveRequests &#125;&#125;;</span><br><span class="line">    &#123;&#123; end &#125;&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line">// rootfs/etc/nginx/lua/balancer.lua</span><br><span class="line">function _M.balance()</span><br><span class="line">	// 这个会去获取 balancer 对象。</span><br><span class="line">  local balancer = get_balancer()</span><br><span class="line">  if not balancer then</span><br><span class="line">    return</span><br><span class="line">  end</span><br><span class="line">	// balancer 的balance方法会在之前初始化的负载均衡算法中实现，具体就是选择一个ip:port</span><br><span class="line">  local peer = balancer:balance()</span><br><span class="line">  if not peer then</span><br><span class="line">    ngx.log(ngx.WARN, &quot;no peer was returned, balancer: &quot; .. balancer.name)</span><br><span class="line">    return</span><br><span class="line">  end</span><br><span class="line">	// 设置重试次数</span><br><span class="line">  ngx_balancer.set_more_tries(1)</span><br><span class="line">	// 这个就是把上文选择到的节点设置成当前的upstream</span><br><span class="line">  local ok, err = ngx_balancer.set_current_peer(peer)</span><br><span class="line">  if not ok then</span><br><span class="line">    ngx.log(ngx.ERR, &quot;error while setting current upstream peer &quot;, peer,</span><br><span class="line">            &quot;: &quot;, err)</span><br><span class="line">  end</span><br><span class="line">end</span><br><span class="line"></span><br><span class="line">// 获取balancer对象的流程</span><br><span class="line">local function get_balancer()</span><br><span class="line">  local backend_name = ngx.var.proxy_upstream_name // default-service-v1-8080</span><br><span class="line">	// 没获取到直接返回</span><br><span class="line">  local balancer = balancers[backend_name] // default-service-v1-8080</span><br><span class="line">  if not balancer then</span><br><span class="line">    return nil</span><br><span class="line">  end</span><br><span class="line">	// 获取到了这边还要在判断一次是否要给返回一个金丝雀的balancer。所以金丝雀是在这边实现的</span><br><span class="line">  // 如果需要路由到金丝雀则把backend替换成金丝雀的balancer</span><br><span class="line">  // 这个其实就是从 alternativeBackends中拿第一个name然后从dict中再取一次金丝雀的backend</span><br><span class="line">  if route_to_alternative_balancer(balancer) then</span><br><span class="line">    local alternative_backend_name = balancer.alternative_backends[1]</span><br><span class="line">    ngx.var.proxy_alternative_upstream_name = alternative_backend_name // default-service-v2-8080</span><br><span class="line">    balancer = balancers[alternative_backend_name]</span><br><span class="line">  end</span><br><span class="line"></span><br><span class="line">  return balancer</span><br><span class="line">end</span><br></pre></td></tr></table></figure>
+
+<h1 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h1><p>整体来说大体的逻辑还是标准的controller编写流程，但是具体到写的感觉写的并不是很好，不少没有用到的老代码，逻辑层级过多。有问题不太好排查。只能记住关键的流程点位，有问题结合具体版本进行分析把。</p>
+
+    </div>
+
+    
+    
+    
+        <div class="reward-container">
+  <div>谢谢你请我充B站大会员</div>
+  <button onclick="var qr = document.getElementById('qr'); qr.style.display = (qr.style.display === 'none') ? 'block' : 'none';">
+    打赏
+  </button>
+  <div id="qr" style="display: none;">
+      
+      <div style="display: inline-block;">
+        <img src="/images/wx.png" alt="phantooom 微信支付">
+        <p>微信支付</p>
+      </div>
+      
+      <div style="display: inline-block;">
+        <img src="/images/ali.png" alt="phantooom 支付宝">
+        <p>支付宝</p>
+      </div>
+
+  </div>
+</div>
+
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/kubernetes/" rel="tag"># kubernetes</a>
+              <a href="/tags/ingress/" rel="tag"># ingress</a>
+              <a href="/tags/%E7%BD%91%E7%BB%9C/" rel="tag"># 网络</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2020/08/14/gfs/" rel="prev" title="mit 6.824 学习笔记 (二) GFS 设计 (附脑图)">
+      <i class="fa fa-chevron-left"></i> mit 6.824 学习笔记 (二) GFS 设计 (附脑图)
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+    
+  <div class="comments">
+    <div id="disqus_thread">
+      <noscript>Please enable JavaScript to view the comments powered by Disqus.</noscript>
+    </div>
+  </div>
+  
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E7%AE%80%E4%BB%8B"><span class="nav-number">1.</span> <span class="nav-text">简介</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%95%B4%E4%BD%93%E6%B5%81%E7%A8%8B"><span class="nav-number">2.</span> <span class="nav-text">整体流程</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E4%BB%A3%E7%A0%81%E5%AE%9E%E7%8E%B0"><span class="nav-number">3.</span> <span class="nav-text">代码实现</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#go%E9%83%A8%E5%88%86"><span class="nav-number">3.1.</span> <span class="nav-text">go部分</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%85%A5%E5%8F%A3%E5%87%BD%E6%95%B0"><span class="nav-number">3.1.1.</span> <span class="nav-text">入口函数</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="nav-number">3.1.2.</span> <span class="nav-text">初始化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#deltafifo%E6%B6%88%E8%B4%B9"><span class="nav-number">3.1.3.</span> <span class="nav-text">deltafifo消费</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Ingress"><span class="nav-number">3.1.4.</span> <span class="nav-text">Ingress</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#ep"><span class="nav-number">3.1.5.</span> <span class="nav-text">ep</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#service"><span class="nav-number">3.1.6.</span> <span class="nav-text">service</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#workerQueue%E6%B6%88%E8%B4%B9"><span class="nav-number">3.1.7.</span> <span class="nav-text">workerQueue消费</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#lua%E9%83%A8%E5%88%86"><span class="nav-number">3.2.</span> <span class="nav-text">lua部分</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%B5%8B%E8%AF%95%E7%94%A8%E4%BE%8B"><span class="nav-number">3.2.1.</span> <span class="nav-text">测试用例</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#configuration-backends-%E6%8E%A5%E5%8F%A3"><span class="nav-number">3.2.2.</span> <span class="nav-text">&#x2F;configuration&#x2F;backends 接口</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#sync-backends-%E4%BB%BB%E5%8A%A1"><span class="nav-number">3.2.3.</span> <span class="nav-text">sync_backends 任务</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%94%A8%E6%88%B7%E8%AE%BF%E9%97%AE"><span class="nav-number">3.2.4.</span> <span class="nav-text">用户访问</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">4.</span> <span class="nav-text">总结</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="phantooom"
+      src="/images/head.jpeg">
+  <p class="site-author-name" itemprop="name">phantooom</p>
+  <div class="site-description" itemprop="description">专业系统研(yun)究(wei)者</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">5</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">5</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">13</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/phantooom" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;phantooom" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:xiaorui.zou@gmail.com" title="E-Mail → mailto:xiaorui.zou@gmail.com" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://www.zhihu.com/people/zoubapi" title="zhihu → https:&#x2F;&#x2F;www.zhihu.com&#x2F;people&#x2F;zoubapi" rel="noopener" target="_blank"><i class="fab fa-zhihu fa-fw"></i>zhihu</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://www.linkedin.com/in/%E7%91%9E-%E9%82%B9-30427a101/" title="LinkedIn → https:&#x2F;&#x2F;www.linkedin.com&#x2F;in&#x2F;%E7%91%9E-%E9%82%B9-30427a101&#x2F;" rel="noopener" target="_blank"><i class="fab fa-linkedin fa-fw"></i>LinkedIn</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 2018 – 
+  <span itemprop="copyrightYear">2021</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">phantooom</span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item-icon">
+      <i class="fa fa-chart-area"></i>
+    </span>
+    <span title="站点总字数">57k</span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item-icon">
+      <i class="fa fa-coffee"></i>
+    </span>
+    <span title="站点阅读时长">3:56</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://pisces.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js"></script>
+  <script src="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+<script>
+  function loadCount() {
+    var d = document, s = d.createElement('script');
+    s.src = 'https://zou-ba-pi-shi-yan-shi.disqus.com/count.js';
+    s.id = 'dsq-count-scr';
+    (d.head || d.body).appendChild(s);
+  }
+  // defer loading until the whole page loading is completed
+  window.addEventListener('load', loadCount, false);
+</script>
+<script>
+  var disqus_config = function() {
+    this.page.url = "https://zou.cool/2021/11/24/ingress-nginx-read/";
+    this.page.identifier = "2021/11/24/ingress-nginx-read/";
+    this.page.title = "Nginx-Ingress-Controller 代码走读";
+    };
+  NexT.utils.loadComments(document.querySelector('#disqus_thread'), () => {
+    if (window.DISQUS) {
+      DISQUS.reset({
+        reload: true,
+        config: disqus_config
+      });
+    } else {
+      var d = document, s = d.createElement('script');
+      s.src = 'https://zou-ba-pi-shi-yan-shi.disqus.com/embed.js';
+      s.setAttribute('data-timestamp', '' + +new Date());
+      (d.head || d.body).appendChild(s);
+    }
+  });
+</script>
+
+</body>
+</html>
