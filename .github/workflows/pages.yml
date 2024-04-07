@@ -27,6 +27,8 @@ jobs:
             ${{ runner.OS }}-npm-cache
       - name: Install Dependencies
         run: npm install
+      - name: Install hexo-cli
+        run: npm hexo-cli
       - name: Build
         run:  hexo g -s
       - name: Upload Pages artifact
