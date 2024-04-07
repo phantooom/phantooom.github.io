@@ -12,6 +12,7 @@
     "version": "7.1.1"
   },
   "dependencies": {
+    "build": "^0.1.4",
     "hexo": "^7.0.0",
     "hexo-admonition": "^1.1.2",
     "hexo-generator-archive": "^2.0.0",
@@ -23,7 +24,8 @@
     "hexo-renderer-stylus": "^3.0.0",
     "hexo-server": "^3.0.0",
     "hexo-symbols-count-time": "^0.7.1",
-    "hexo-theme-landscape": "^1.0.0"
+    "hexo-theme-landscape": "^1.0.0",
+    "server": "^1.0.39"
   },
   "packageManager": "yarn@1.22.22+sha1.ac34549e6aa8e7ead463a7407e1c7390f61a6610"
 }
