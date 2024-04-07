@@ -18,11 +18,11 @@ tags:
 ![Untitled](https://cdn.jsdelivr.net/gh/phantooom/image-box/overlay/Untitled.png)
 
 这个问题群里没有人复现，但是后来群友补充到在centos 7.4 中可以稳定复现。其他系统版本不会出现。到这里我基本上猜测是overlayfs本身的变动，或者说是其他版本的系统中已经默认使用overlay2作为默认的docker driver替换了overlayfs了。
+<!-- more -->
 
 到了凌晨的时候，在群里的一个同事。把相关代码定位到了。具体的是内核中overlayfs的实现导致的，目录与文件获取deviceId的行为不一致。具体情况如下图所示：
 
 ![Untitled](https://cdn.jsdelivr.net/gh/phantooom/image-box/overlay/Untitled%201.png)
-<!-- more -->
 每次遇到这种情况都觉得自己好菜。觉得同事好强。同时也在想，如果是我要定位这个问题。我会怎么办。直接去扒源码对我可能来说过于困难。于是我就开始了一些探索，想找到一条不过度依赖个人能力的方式去找到问题的答案。
 
 对于个人来说相对一个理想的方式是通过一些工具能够定位到具体调用了哪些函数，最好还能观测到函数的返回值。然后定位到这个东西(dev 信息)是哪个函数拿到/生成并返回的。然后去阅读相关代码。
