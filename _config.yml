@@ -112,6 +112,7 @@ theme: next
 ## Docs: https://hexo.io/docs/one-command-deployment
 deploy:
   type: 'git'
+  repo: https://github.com/phantooom/phantooom.github.io
 
 
 excerpt_link: 展开全文
