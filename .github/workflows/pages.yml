@@ -8,6 +8,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     steps:
       - uses: actions/checkout@v3
         with:
@@ -33,25 +36,15 @@ jobs:
         uses: actions/upload-pages-artifact@v2
         with:
           path: ./public
-  deploy:
-    needs: build
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    steps:
-    - name: Deploy to Github Pages
-      env:
-        GIT_NAME: phantooom
-        GIT_EMAIL: xiaorui.zou@gmail.com
-      run: |
-        git config --global init.defaultBranch master
-        git config --global user.name $GIT_NAME
-        git config --global user.email $GIT_EMAIL
-        cd public && git init && git add .
-        git commit -m "Site deployed by GitHub Actions"
-        git remote add blog https://${{ secrets.action }}@github.com/phantooom/phantooom.github.io.git
-        git push --force --quiet blog master
+      - name: Deploy to Github Pages
+        env:
+          GIT_NAME: phantooom
+          GIT_EMAIL: xiaorui.zou@gmail.com
+        run: |
+          git config --global init.defaultBranch master
+          git config --global user.name $GIT_NAME
+          git config --global user.email $GIT_EMAIL
+          cd public && git init && git add .
+          git commit -m "Site deployed by GitHub Actions"
+          git remote add blog https://${{ secrets.action }}@github.com/phantooom/phantooom.github.io.git
+          git push --force --quiet blog master
