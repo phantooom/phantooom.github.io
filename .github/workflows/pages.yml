@@ -36,15 +36,12 @@ jobs:
         uses: actions/upload-pages-artifact@v2
         with:
           path: ./public
-      - name: Deploy to Github Pages
-        env:
-          GIT_NAME: phantooom
-          GIT_EMAIL: xiaorui.zou@gmail.com
-        run: |
-          git config --global init.defaultBranch master
-          git config --global user.name $GIT_NAME
-          git config --global user.email $GIT_EMAIL
-          cd public && git init && git add .
-          git commit -m "Site deployed by GitHub Actions"
-          git remote add blog https://${{ secrets.action }}@github.com/phantooom/phantooom.github.io.git
-          git push --force --quiet blog master
+      - name: Deploy
+        uses: JamesIves/github-pages-deploy-action@v4.3.3
+        with:
+          token: ${{ secrets.TOKEN_PAGES }}
+          repository-name: phantooom/phantooom.github.io
+          branch: master # The branch the action should deploy to.
+          folder: public # The folder the action should deploy.
+          single-commit: true
+          commit-message: "Deploy by source"
