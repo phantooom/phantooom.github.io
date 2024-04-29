@@ -1,7 +1,7 @@
 ---
 title: 为什么我的 GPU 节点都挂了
 categories: [系统]
-date: 2020-8-14
+date: 2024-4-29
 keywords: ['内核','trouble shooting','oom','内存','容器','gpu','cgroup']
 tags:
     - 内核
