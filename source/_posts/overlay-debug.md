@@ -1,6 +1,6 @@
 ---
 title: overlayfs 文件与目录 device 不同排查
-categories: [内核,容器,gdb,qemu]
+categories: ['系统','内核']
 keywords: ['内核','容器','gdb','qemu','文件系统']
 date: 2024-04-07
 tags:
