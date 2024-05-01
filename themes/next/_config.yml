@@ -263,18 +263,8 @@ symbols_count_time:
 # Use icon instead of the symbol # to indicate the tag at the bottom of the post
 tag_icon: false
 
-# Donate (Sponsor) settings
-# Front-matter variable (nonsupport animation).
-reward_settings:
-  # If true, a donate button will be displayed in every article by default.
-  enable: false
-  animation: false
 
-reward:
-  #wechatpay: /images/wechatpay.png
-  #alipay: /images/alipay.png
-  #paypal: /images/paypal.png
-  #bitcoin: /images/bitcoin.png
+
 
 # Subscribe through Telegram Channel, Twitter, etc.
 # Usage: `Key: permalink || icon` (Font Awesome)
