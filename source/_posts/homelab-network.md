@@ -1,5 +1,5 @@
 ---
-title: HomeLab(一): 基础网络搭建
+title: HomeLab(一) 基础网络搭建
 categories: [HomeLab]
 date: 2024-5-28
 keywords: ['网络','软路由','HomeLab','openvpn','openclash','tailscale']
