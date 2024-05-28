@@ -3,26 +3,25 @@ name: Pages
 on:
   push:
     branches:
-      - master  # default branch
+      - main  # default branch
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           # If your repository depends on submodule, please see: https://github.com/actions/checkout
           submodules: recursive
-      - name: Use Node.js 16.x
-        uses: actions/setup-node@v2
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
         with:
-          node-version: '16'
+          # Examples: 20, 18.19, >=16.20.2, lts/Iron, lts/Hydrogen, *, latest, current, node
+          # Ref: https://github.com/actions/setup-node#supported-version-syntax
+          node-version: '20'
       - name: Cache NPM dependencies
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: node_modules
           key: ${{ runner.OS }}-npm-cache
@@ -31,17 +30,21 @@ jobs:
       - name: Install Dependencies
         run: npm install
       - name: Build
-        run:  npm run build
+        run: npm run build
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v2
+        uses: actions/upload-pages-artifact@v3
         with:
           path: ./public
-      - name: Deploy
-        uses: JamesIves/github-pages-deploy-action@v4.3.3
-        with:
-          token: ${{ secrets.TOKEN_PAGES }}
-          repository-name: phantooom/phantooom.github.io
-          branch: master # The branch the action should deploy to.
-          folder: public # The folder the action should deploy.
-          single-commit: true
-          commit-message: "Deploy by source"
+  deploy:
+    needs: build
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
