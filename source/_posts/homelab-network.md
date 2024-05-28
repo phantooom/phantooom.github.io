@@ -34,8 +34,6 @@ tags:
 - 申请了公网的IPV4 IP
 - 从光猫换成了猫棒（不是为了提高网速，只是为了节约弱电箱的空间）
 
-![Untitled](https://cdn.jsdelivr.net/gh/phantooom/image-box/homelab-network/Untitled.png)
-
 ## 内网规划
 
 内网整体上分为两个大的部分一部分是楼上，一部分是楼下。
