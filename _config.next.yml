@@ -280,11 +280,9 @@ tag_icon: false
 reward_settings:
   # If true, a donate button will be displayed in every article by default.
   enable: true
-  animation: true
-  comment: 谢谢你请我充B站大会员
+  animation: false
 
 reward:
-  comment: 谢谢你请我充B站大会员
   wechatpay: /images/wx.png
   alipay: /images/ali.png
   #wechatpay: /images/wechatpay.png
