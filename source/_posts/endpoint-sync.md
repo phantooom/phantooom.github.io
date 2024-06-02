@@ -1,6 +1,6 @@
 ---
 title: 糟糕，我一发布怎么服务都504了
-categories: [K8S]
+categories: [kubernetes]
 date: 2024-6-2
 keywords: ['网络','trouble shooting','Ingress','K8S','Controller manager']
 tags:
