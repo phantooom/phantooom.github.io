@@ -1,4 +1,4 @@
----
+&---
 title: HomeLab(二) 黑群晖及常用软件配置
 categories: [HomeLab]
 date: 2024-6-3
@@ -356,11 +356,11 @@ tv:
 
 ![微信截图_20240603221605.jpg](https://cdn.jsdelivr.net/gh/phantooom/image-box/homelab-synology/%25E5%25BE%25AE%25E4%25BF%25A1%25E6%2588%25AA%25E5%259B%25BE_20240603221605.jpg)
 
-启用本地的cachecloud。将我们的地址填入cachecloud的浏览器插件中。后边我们要自动同步许多支持搜索的站点用来搜索种子资源。
+启用本地的cookiecloud。将我们的地址填入cookiecloud的浏览器插件中。后边我们要自动同步许多支持搜索的站点用来搜索种子资源。
 
 ![Untitled](https://cdn.jsdelivr.net/gh/phantooom/image-box/homelab-synology/Untitled%2015.png)
 
-填写完成之后我们去点击服务选项卡中的同步cachecloud站点
+填写完成之后我们去点击服务选项卡中的同步cookiecloud站点
 
 ![微信截图_20240603221923.jpg](https://cdn.jsdelivr.net/gh/phantooom/image-box/homelab-synology/%25E5%25BE%25AE%25E4%25BF%25A1%25E6%2588%25AA%25E5%259B%25BE_20240603221923.jpg)
 
