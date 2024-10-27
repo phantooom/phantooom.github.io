@@ -426,4 +426,6 @@ DRG与集采从客观上就降低了人们的就医成本。让许多之前没�
 
 ## 我就想要原研药该怎么找？
 国家定期会发布参比制剂,参比制剂大部分为原研药,少部分停产的会寻找公认效果好的药。具体可以查看 https://www.nmpa.gov.cn/yaopin/ypggtg/index.html
-我这边也整理了一份可以参考: https://github.com/phantooom/cn-Insurance/blame/main/health-insurance/data/%E5%8F%82%E6%AF%94%E5%88%B6%E5%89%82.json
+我这边也整理了一份可以参考:
+* 飞书: https://rp6wx8wezp.feishu.cn/sheets/YFtjsNhJ0hi6potnep4c4VCfnzf
+* github: https://github.com/phantooom/cn-Insurance/blame/main/health-insurance/data/%E5%8F%82%E6%AF%94%E5%88%B6%E5%89%82.json
